@@ -7,6 +7,32 @@ type TurnstileVerifyResponse = {
   "error-codes"?: string[];
 };
 
+function normalizeHost(value: string) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "";
+
+  try {
+    const withScheme = raw.includes("://") ? raw : `https://${raw}`;
+    return new URL(withScheme).hostname.toLowerCase();
+  } catch {
+    return raw
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/.*$/, "")
+      .replace(/:\d+$/, "")
+      .trim()
+      .toLowerCase();
+  }
+}
+
+function parseAllowedHosts(value: string) {
+  return new Set(
+    String(value ?? "")
+      .split(",")
+      .map((item) => normalizeHost(item))
+      .filter(Boolean),
+  );
+}
+
 export async function verifyTurnstileToken(input: {
   token: string;
   remoteIp?: string;
@@ -44,10 +70,10 @@ export async function verifyTurnstileToken(input: {
     throw new HttpError(400, "Verifikasi captcha gagal. Coba lagi.");
   }
 
-  const expectedHost = String(env.TURNSTILE_EXPECTED_HOST ?? "").trim().toLowerCase();
-  const hostname = String(data.hostname ?? "").trim().toLowerCase();
-  if (expectedHost && hostname && hostname !== expectedHost) {
+  const allowedHosts = parseAllowedHosts(env.TURNSTILE_EXPECTED_HOST ?? "");
+  const hostname = normalizeHost(data.hostname ?? "");
+
+  if (allowedHosts.size > 0 && hostname && !allowedHosts.has(hostname)) {
     throw new HttpError(400, "Hostname captcha tidak valid.");
   }
 }
-
