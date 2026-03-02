@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="apple-touch-icon" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Platform pembelian nomor OTP virtual." />
+    <meta name="robots" content="index,follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="OTP Seller" />
+    <meta property="og:description" content="Platform pembelian nomor OTP virtual." />
+    <meta property="og:image" content="/vite.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OTP Seller" />
+    <meta name="twitter:description" content="Platform pembelian nomor OTP virtual." />
+    <meta name="twitter:image" content="/vite.svg" />
+    <title>OTP Seller</title>
+    <script>
+      (function () {
+        try {
+          var key = "app-theme";
+          var stored = localStorage.getItem(key);
+          var mode = stored === "dark" || stored === "light"
+            ? stored
+            : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          if (mode === "dark") document.documentElement.classList.add("dark");
+          document.documentElement.setAttribute("data-theme", mode);
+          document.documentElement.style.colorScheme = mode;
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

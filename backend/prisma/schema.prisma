@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  balance      Int      @default(0) // IDR
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  numberOrders UserNumberOrder[]
+  topups       UserTopup[]
+  balanceMutations UserBalanceMutation[]
+}
+
+model EmailVerificationCode {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  codeHash     String
+  attemptCount Int      @default(0)
+  sendCount    Int      @default(1)
+  expiresAt    DateTime
+  lastSentAt   DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@index([lastSentAt])
+}
+
+model PasswordResetCode {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  codeHash     String
+  attemptCount Int      @default(0)
+  sendCount    Int      @default(1)
+  expiresAt    DateTime
+  lastSentAt   DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@index([lastSentAt])
+  @@index([codeHash])
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshTokenHash String
+  userAgent        String?
+  ip               String?
+  revokedAt        DateTime?
+  expiresAt        DateTime
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Admin {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  passwordHash String
+  name         String?
+  isActive     Boolean       @default(true)
+
+  sessions     AdminSession[]
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AdminSession {
+  id               String   @id @default(cuid())
+  adminId          String
+  refreshTokenHash String
+  userAgent        String?
+  ip               String?
+  revokedAt        DateTime?
+  expiresAt        DateTime
+
+  admin            Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([adminId])
+}
+
+model AdminPricingSettings {
+  id            String   @id @default(cuid())
+  profitPercent Float    @default(10)  // 0..100
+  usdToIdrRate  Int      @default(16000)
+
+  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now())
+}
+
+model AdminServiceCountryCustomPrice {
+  id          String   @id @default(cuid())
+  service     String
+  country     Int
+  customPrice Float    // harga final IDR yang akan override retail_price
+  isActive    Boolean  @default(true)
+
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@unique([service, country])
+  @@index([service])
+  @@index([country])
+}
+
+model UserNumberOrder {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activationId   String   @unique
+  phoneNumber    String
+  service        String
+  serviceName    String?
+  country        Int
+  countryName    String?
+  pricePaid      Int      // final price paid in IDR
+  profitAmount   Int      @default(0) // estimated profit in IDR
+
+  status         String   @default("STATUS_WAIT_CODE")
+  smsCode        String?
+  smsText        String?
+  smsPayload     Json?
+  providerRaw    Json?
+  activationTime DateTime?
+  activationEndTime DateTime?
+  lastSyncedAt   DateTime?
+  refundedAt     DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+  @@index([userId, refundedAt])
+  @@index([service, country])
+}
+
+model UserTopup {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  reffId         String   @unique
+  methodCode     String
+  amount         Int      // nominal topup user
+  totalBayar     Int?     // total yang dibayar customer
+  totalDiterima  Int?     // total bersih diterima merchant
+
+  providerRef    String?  // reference payment gateway
+  providerTrxId  String?  // transaction id/signature from gateway
+  providerStatus String   @default("UNPAID")
+  status         String   @default("PENDING")
+
+  payUrl         String?
+  checkoutUrl    String?
+  qrLink         String?
+  qrString       String?
+  nomorVa        String?
+  panduanPembayaran String?
+
+  paidAt         DateTime?
+  creditedAt     DateTime?
+
+  rawCreate      Json?
+  rawStatus      Json?
+  rawWebhook     Json?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+  @@index([reffId])
+}
+
+model UserBalanceMutation {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type          String
+  direction     String   // CREDIT | DEBIT
+  amount        Int      // always positive in IDR
+  balanceBefore Int
+  balanceAfter  Int
+
+  referenceType String?  // TOPUP | NUMBER_ORDER | MANUAL
+  referenceId   String?
+  description   String?
+  metadata      Json?
+
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, type])
+  @@index([userId, direction])
+  @@index([referenceType, referenceId])
+}
+
+model NewsInfo {
+  id               String   @id @default(cuid())
+  title            String
+  summary          String
+  content          String
+  tag              String?
+  isPublished      Boolean  @default(false)
+  publishedAt      DateTime?
+  createdByAdminId String?
+  updatedByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isPublished, publishedAt])
+  @@index([createdAt])
+}
+
+model WebsiteSettings {
+  id                 String   @id
+  siteName           String   @default("OTP Seller")
+  siteDescription    String   @default("Platform pembelian nomor OTP virtual")
+  logoUrl            String?
+  maintenanceMode    Boolean  @default(false)
+  maintenanceMessage String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model WebsiteBanner {
+  id               String   @id @default(cuid())
+  imageUrl         String
+  title            String?
+  subtitle         String?
+  linkUrl          String?
+  sortOrder        Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdByAdminId String?
+  updatedByAdminId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@index([createdAt])
+}
