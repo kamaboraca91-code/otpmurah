@@ -1001,17 +1001,7 @@ export default function DepositPage() {
                 </span>{" "}
                 dari <span className="font-bold text-slate-600">{filteredItems.length}</span> data
               </p>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={tableLoading || historyPage <= 1}
-                  onClick={() => goToHistoryPage(1)}
-                  className="!h-8 !w-8 !p-0 !text-[11px]"
-                  title="Halaman pertama"
-                >
-                  <Icon name="iconify:solar:alt-arrow-left-bold" className="h-3.5 w-3.5" />
-                </Button>
+              <div className="flex items-center gap-2">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1022,46 +1012,6 @@ export default function DepositPage() {
                   <Icon name="iconify:solar:arrow-left-linear" className="h-3 w-3" />
                   Prev
                 </Button>
-
-                <div className="flex items-center gap-0.5 mx-1">
-                  {Array.from({ length: totalHistoryPages }, (_, i) => i + 1)
-                    .filter((p) => {
-                      if (totalHistoryPages <= 5) return true;
-                      if (p === 1 || p === totalHistoryPages) return true;
-                      if (Math.abs(p - historyPage) <= 1) return true;
-                      return false;
-                    })
-                    .reduce<(number | "dots")[]>((acc, p, i, arr) => {
-                      if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("dots");
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, i) =>
-                      p === "dots" ? (
-                        <span
-                          key={`dots-${i}`}
-                          className="px-1 text-[10px] text-slate-300 select-none"
-                        >
-                          •••
-                        </span>
-                      ) : (
-                        <button
-                          key={p}
-                          disabled={tableLoading}
-                          onClick={() => goToHistoryPage(p)}
-                          className={cx(
-                            "flex h-8 min-w-[32px] items-center justify-center rounded-lg text-[11px] font-bold transition-all duration-200 disabled:pointer-events-none disabled:opacity-50",
-                            historyPage === p
-                              ? "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/25"
-                              : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                          )}
-                        >
-                          {p}
-                        </button>
-                      )
-                    )}
-                </div>
-
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1071,16 +1021,6 @@ export default function DepositPage() {
                 >
                   Next
                   <Icon name="iconify:solar:arrow-right-linear" className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={tableLoading || historyPage >= totalHistoryPages}
-                  onClick={() => goToHistoryPage(totalHistoryPages)}
-                  className="!h-8 !w-8 !p-0 !text-[11px]"
-                  title="Halaman terakhir"
-                >
-                  <Icon name="iconify:solar:alt-arrow-right-bold" className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>

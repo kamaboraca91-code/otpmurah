@@ -659,7 +659,7 @@ export default function OrderPage() {
           {/* Modal Body */}
           <div className="max-h-[420px] overflow-y-auto p-5 scrollbar-thin dark:text-slate-200">
             {/* Current price info */}
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200/60 bg-slate-50/80 px-4 py-3">
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200/60 bg-slate-50/80 px-2 py-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
                 <Icon name="iconify:solar:tag-price-bold-duotone" className="h-4 w-4 text-slate-500" />
               </div>
@@ -689,7 +689,7 @@ export default function OrderPage() {
                     <div
                       key={option.key}
                       className={cn(
-                        "group rounded-xl border bg-white px-4 py-3.5 transition-all duration-200",
+                        "group rounded-xl border bg-white px-2 py-2.5 transition-all duration-200",
                         isProcessing
                           ? "border-emerald-300 bg-emerald-50/30 shadow-sm"
                           : "border-slate-200/80 hover:border-slate-300 hover:shadow-sm"
@@ -720,7 +720,7 @@ export default function OrderPage() {
                             <span className="font-semibold text-slate-600">
                               {option.stock.toLocaleString()}
                             </span>{" "}
-                            pcs tersedia
+                            pcs 
                           </div>
                         </div>
 
@@ -737,7 +737,7 @@ export default function OrderPage() {
                           leftIcon="iconify:solar:cart-large-minimalistic-bold-duotone"
                           className="!h-9 !text-xs !font-bold"
                         >
-                          {isProcessing ? "Ordering..." : "Order Opsi Ini"}
+                          {isProcessing ? "Ordering..." : "Order"}
                         </Button>
                       </div>
                     </div>
@@ -816,7 +816,7 @@ export default function OrderPage() {
           <div className="border-b border-slate-100/80 px-5 py-3">
             <div className="relative group">
               <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 transition-colors group-focus-within:text-emerald-500">
-                <Icon name="search" className="h-4 w-4" />
+                 <Icon name="search" className="h-5 w-5 mb-[3px]" />
               </span>
               <input
                 value={serviceQuery}
@@ -1109,14 +1109,14 @@ export default function OrderPage() {
                 <>
                   {/* Search country */}
                   <div className="relative group mb-4">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 transition-colors group-focus-within:text-violet-500">
-                      <Icon name="search" className="h-4 w-4" />
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300 transition-colors group-focus-within:text-emerald-500">
+                      <Icon name="search" className="h-5 w-5 mb-[3px]" />
                     </span>
                     <input
                       value={countryQuery}
                       onChange={(e) => setCountryQuery(e.target.value)}
                       placeholder="Cari negara (Indonesia, Russia, 36...)"
-                      className="w-full h-10 rounded-xl border border-slate-200/80 bg-slate-50/50 pl-10 pr-10 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 focus:shadow-sm"
+                      className="w-full h-10 rounded-xl border border-slate-200/80 bg-slate-50/50 pl-10 pr-10 text-xs text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm"
                     />
                     {countryQuery && (
                       <button

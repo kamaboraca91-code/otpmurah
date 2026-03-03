@@ -251,6 +251,11 @@ html.dark table td {
   border-color: rgba(71, 85, 105, 0.42);
 }
 
+table th,
+table td {
+  white-space: nowrap;
+}
+
 /* Force card border in dark mode (even if page sets border-0) */
 html.dark .ui-card {
   border-width: 1px !important;
