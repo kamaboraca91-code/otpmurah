@@ -1,6 +1,12 @@
 import { getCookie } from "./cookies";
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
+function resolveApiBase() {
+  const raw = String(import.meta.env.VITE_API_BASE ?? "").trim();
+  if (raw) return raw.replace(/\/+$/, "");
+  return import.meta.env.PROD ? "" : "http://localhost:4000";
+}
+
+export const API_BASE = resolveApiBase();
 export const USER_AUTH_EXPIRED_EVENT = "user-auth-expired";
 const DEFAULT_REQUEST_TIMEOUT_MS = 25000;
 let userBearerToken: string | null = null;

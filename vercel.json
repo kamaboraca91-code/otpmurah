@@ -2,6 +2,42 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/auth/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/auth/:path*"
+    },
+    {
+      "source": "/user/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/user/:path*"
+    },
+    {
+      "source": "/sessions/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/sessions/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/admin/auth/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/admin/auth/:path*"
+    },
+    {
+      "source": "/admin/settings/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/admin/settings/:path*"
+    },
+    {
+      "source": "/admin/services/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/admin/services/:path*"
+    },
+    {
+      "source": "/admin/monitor/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/admin/monitor/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://otp-murah-api-production.up.railway.app/uploads/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

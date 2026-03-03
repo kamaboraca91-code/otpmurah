@@ -1,6 +1,12 @@
 import { getCookie } from "./cookies";
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
+function resolveApiBase() {
+  const raw = String(import.meta.env.VITE_API_BASE ?? "").trim();
+  if (raw) return raw.replace(/\/+$/, "");
+  return import.meta.env.PROD ? "" : "http://localhost:4000";
+}
+
+export const API_BASE = resolveApiBase();
 export const ADMIN_AUTH_EXPIRED_EVENT = "admin-auth-expired";
 let adminBearerToken: string | null = null;
 
