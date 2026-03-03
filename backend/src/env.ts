@@ -57,6 +57,55 @@ function stringFromEnv(name: string, fallback: string) {
   return value || fallback;
 }
 
+function normalizeOrigin(value: string) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
+function normalizeCookieDomain(rawValue: string | undefined) {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw) return "";
+
+  const lower = raw.toLowerCase();
+  if (["value", "none", "null", "undefined", "false", "-"].includes(lower)) {
+    return "";
+  }
+
+  let candidate = raw;
+  try {
+    candidate = new URL(raw).hostname;
+  } catch {
+    // keep as-is
+  }
+
+  candidate = candidate
+    .trim()
+    .replace(/\/.*$/, "")
+    .replace(/:\d+$/, "")
+    .replace(/^\.+/, "")
+    .toLowerCase();
+
+  if (!candidate || candidate === "localhost") return "";
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(candidate)) return "";
+  if (!/^[a-z0-9.-]+$/.test(candidate)) return "";
+  return candidate;
+}
+
+const frontendBaseUrl = normalizeOrigin(
+  stringFromEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
+);
+const cookieSameSite = sameSiteFromEnv("COOKIE_SAME_SITE", "lax");
+const cookieSecure = cookieSameSite === "none" ? true : boolFromEnv("COOKIE_SECURE", false);
+const cookieDomain = normalizeCookieDomain(process.env.COOKIE_DOMAIN);
+const corsOrigins = csvFromEnv("CORS_ORIGINS", [frontendBaseUrl || "http://localhost:5173"])
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
 export const env = {
   PORT: intFromEnv("PORT", 4000),
 
@@ -67,14 +116,12 @@ export const env = {
   REFRESH_TOKEN_TTL: process.env.REFRESH_TOKEN_TTL ?? "30d",
 
   // Cookies
-  COOKIE_SECURE: boolFromEnv("COOKIE_SECURE", false),
-  COOKIE_SAME_SITE: sameSiteFromEnv("COOKIE_SAME_SITE", "lax"),
-  COOKIE_DOMAIN: process.env.COOKIE_DOMAIN ?? "",
+  COOKIE_SECURE: cookieSecure,
+  COOKIE_SAME_SITE: cookieSameSite,
+  COOKIE_DOMAIN: cookieDomain,
 
   // CORS
-  CORS_ORIGINS: csvFromEnv("CORS_ORIGINS", [
-    process.env.FRONTEND_BASE_URL ?? "http://localhost:5173",
-  ]),
+  CORS_ORIGINS: corsOrigins,
 
   // Admin auth
   JWT_ADMIN_ACCESS_SECRET: must("JWT_ADMIN_ACCESS_SECRET"),
@@ -123,7 +170,7 @@ export const env = {
   EMAIL_PROVIDER: stringFromEnv("EMAIL_PROVIDER", "auto"),
   RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
   RESEND_API_URL: stringFromEnv("RESEND_API_URL", "https://api.resend.com/emails"),
-  FRONTEND_BASE_URL: process.env.FRONTEND_BASE_URL ?? "http://localhost:5173",
+  FRONTEND_BASE_URL: frontendBaseUrl || "http://localhost:5173",
 
   // Turnstile
   TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY ?? "",
