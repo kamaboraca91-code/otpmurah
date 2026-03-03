@@ -50,6 +50,13 @@ function sameSiteFromEnv(name: string, fallback: SameSiteValue): SameSiteValue {
   return fallback;
 }
 
+function stringFromEnv(name: string, fallback: string) {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const value = raw.trim();
+  return value || fallback;
+}
+
 export const env = {
   PORT: intFromEnv("PORT", 4000),
 
@@ -113,6 +120,9 @@ export const env = {
   SMTP_PASS: process.env.SMTP_PASS ?? "",
   SMTP_FROM_EMAIL: process.env.SMTP_FROM_EMAIL ?? "",
   SMTP_FROM_NAME: process.env.SMTP_FROM_NAME ?? "OTP Seller",
+  EMAIL_PROVIDER: stringFromEnv("EMAIL_PROVIDER", "auto"),
+  RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
+  RESEND_API_URL: stringFromEnv("RESEND_API_URL", "https://api.resend.com/emails"),
   FRONTEND_BASE_URL: process.env.FRONTEND_BASE_URL ?? "http://localhost:5173",
 
   // Turnstile

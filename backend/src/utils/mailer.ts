@@ -8,6 +8,14 @@ const SMTP_CONNECTION_TIMEOUT_MS = 10000;
 const SMTP_GREETING_TIMEOUT_MS = 10000;
 const SMTP_SOCKET_TIMEOUT_MS = 20000;
 const SMTP_SEND_TIMEOUT_MS = 20000;
+const RESEND_SEND_TIMEOUT_MS = 20000;
+
+type MailContent = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+};
 
 function getTransporter() {
   if (checked) return cachedTransporter;
@@ -76,12 +84,100 @@ async function sendMailWithTimeout(
   }
 }
 
+function getMailProvider() {
+  const configured = String(env.EMAIL_PROVIDER ?? "auto").trim().toLowerCase();
+  if (configured === "smtp" || configured === "resend") return configured;
+  if (env.RESEND_API_KEY) return "resend";
+  return "smtp";
+}
+
+function fromEmailForApi() {
+  const fromEmail = (env.SMTP_FROM_EMAIL || env.SMTP_USER || "").trim();
+  if (fromEmail) return fromEmail;
+  return "onboarding@resend.dev";
+}
+
+async function sendViaResend(input: MailContent) {
+  const apiKey = String(env.RESEND_API_KEY ?? "").trim();
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY belum diisi.");
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), RESEND_SEND_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(env.RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `"${env.SMTP_FROM_NAME}" <${fromEmailForApi()}>`,
+        to: [input.to],
+        subject: input.subject,
+        html: input.html,
+        text: input.text,
+      }),
+      signal: controller.signal,
+    });
+
+    let data: any = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    if (!res.ok) {
+      const apiMessage =
+        data?.message ||
+        data?.error?.message ||
+        data?.error ||
+        `Resend API gagal (${res.status})`;
+      throw new Error(String(apiMessage));
+    }
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Koneksi ke provider email timeout. Coba lagi beberapa saat.");
+    }
+    if (err instanceof Error) throw err;
+    throw new Error("Gagal mengirim email via Resend.");
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function sendEmail(input: MailContent) {
+  const provider = getMailProvider();
+
+  if (provider === "resend") {
+    await sendViaResend(input);
+    return;
+  }
+
+  const transporter = getTransporter();
+  if (!transporter) {
+    throw new Error(
+      "SMTP belum dikonfigurasi. Isi SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, dan SMTP_FROM_EMAIL di backend/.env",
+    );
+  }
+
+  await sendMailWithTimeout(transporter, {
+    from: fromAddress(),
+    to: input.to,
+    subject: input.subject,
+    text: input.text,
+    html: input.html,
+  });
+}
+
 export async function sendRegisterVerificationCodeEmail(input: {
   to: string;
   code: string;
   expiresInMinutes: number;
 }) {
-  const transporter = getTransporter();
   const brandName = env.SMTP_FROM_NAME || "OTP Seller";
   const nowYear = new Date().getFullYear();
 
@@ -165,14 +261,7 @@ export async function sendRegisterVerificationCodeEmail(input: {
     </html>
   `.trim();
 
-  if (!transporter) {
-    throw new Error(
-      "SMTP belum dikonfigurasi. Isi SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, dan SMTP_FROM_EMAIL di backend/.env",
-    );
-  }
-
-  await sendMailWithTimeout(transporter, {
-    from: fromAddress(),
+  await sendEmail({
     to: input.to,
     subject,
     text,
@@ -185,7 +274,6 @@ export async function sendPasswordResetLinkEmail(input: {
   resetUrl: string;
   expiresInMinutes: number;
 }) {
-  const transporter = getTransporter();
   const brandName = env.SMTP_FROM_NAME || "OTP Seller";
   const nowYear = new Date().getFullYear();
 
@@ -277,14 +365,7 @@ export async function sendPasswordResetLinkEmail(input: {
     </html>
   `.trim();
 
-  if (!transporter) {
-    throw new Error(
-      "SMTP belum dikonfigurasi. Isi SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, dan SMTP_FROM_EMAIL di backend/.env",
-    );
-  }
-
-  await sendMailWithTimeout(transporter, {
-    from: fromAddress(),
+  await sendEmail({
     to: input.to,
     subject,
     text,
