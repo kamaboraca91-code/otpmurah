@@ -1,5 +1,6 @@
 import React, { createContext, useEffect, useMemo, useState } from "react";
 import {
+  API_BASE,
   USER_AUTH_EXPIRED_EVENT,
   apiFetch,
   setUserBearerToken,
@@ -28,6 +29,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  function applyRealtimeBalance(nextBalance: unknown) {
+    const numeric = Number(nextBalance);
+    if (!Number.isFinite(numeric)) return;
+    setUser((prev) => {
+      if (!prev) return prev;
+      if (Number(prev.balance ?? 0) === numeric) return prev;
+      return { ...prev, balance: numeric };
+    });
+  }
 
   async function refresh() {
     const data = await apiFetch("/auth/refresh", { method: "POST" });
@@ -117,6 +128,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener(USER_AUTH_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(USER_AUTH_EXPIRED_EVENT, onExpired);
   }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const topupsStream = new EventSource(`${API_BASE}/api/topups/stream`, {
+      withCredentials: true,
+    });
+    const numbersStream = new EventSource(`${API_BASE}/api/numbers/stream`, {
+      withCredentials: true,
+    });
+
+    const onTopupUpdate = (event: Event) => {
+      try {
+        const payload = JSON.parse((event as MessageEvent).data ?? "{}");
+        if (payload?.balance !== undefined) {
+          applyRealtimeBalance(payload.balance);
+        }
+      } catch {
+        // ignore malformed payload
+      }
+    };
+
+    const onNumberUpdate = (event: Event) => {
+      try {
+        const payload = JSON.parse((event as MessageEvent).data ?? "{}");
+        if (payload?.balance !== undefined) {
+          applyRealtimeBalance(payload.balance);
+        }
+      } catch {
+        // ignore malformed payload
+      }
+    };
+
+    topupsStream.addEventListener("topup_update", onTopupUpdate);
+    numbersStream.addEventListener("number_update", onNumberUpdate);
+
+    return () => {
+      topupsStream.removeEventListener("topup_update", onTopupUpdate);
+      numbersStream.removeEventListener("number_update", onNumberUpdate);
+      topupsStream.close();
+      numbersStream.close();
+    };
+  }, [user?.id]);
 
   const value = useMemo(
     () => ({ user, accessToken, isLoading, login, register, logout, refresh, reloadMe }),
