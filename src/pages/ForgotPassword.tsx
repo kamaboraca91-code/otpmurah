@@ -197,6 +197,7 @@ export default function ForgotPassword() {
       setSending(true);
       const out = await apiFetch("/auth/password/request-link", {
         method: "POST",
+        timeoutMs: 15000,
         body: JSON.stringify({ email: emailNorm, captchaToken }),
       });
 

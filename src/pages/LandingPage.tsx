@@ -256,11 +256,14 @@ function Header({ branding }: { branding: WebsiteBranding }) {
           {/* Mobile dropdown */}
           <div
             className={cx(
-              "overflow-hidden transition-all duration-300 ease-out lg:hidden",
-              mobileOpen ? "max-h-[400px] opacity-100 pb-4" : "max-h-0 opacity-0"
+              "origin-top overflow-hidden transition-[max-height,opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden",
+              mobileOpen
+                ? "max-h-[460px] translate-y-0 scale-100 opacity-100 pb-4"
+                : "pointer-events-none max-h-0 -translate-y-2 scale-[0.98] opacity-0"
             )}
           >
-            <div className="rounded-2xl border border-slate-200/80 bg-white/95 backdrop-blur-xl p-3 shadow-xl shadow-slate-900/5">
+            <div className="-mx-4 mt-2 sm:mx-0 sm:mt-0">
+              <div className="rounded-none border-y border-slate-200/80 bg-white/95 p-3 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:rounded-2xl sm:border sm:shadow-xl">
               {navItems.map((item) => (
                 <a
                   key={item.href}
@@ -274,7 +277,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
               ))}
               <div className="my-2 border-t border-slate-100" />
               <div className="grid gap-2 sm:grid-cols-2">
-                <Link to="/login">
+                <Link to="/login" onClick={() => setMobileOpen(false)}>
                   <Button variant="secondary" className="w-full">
                     Log in
                   </Button>
@@ -290,6 +293,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
                   Receive SMS
                 </Button>
               </div>
+            </div>
             </div>
           </div>
         </Container>

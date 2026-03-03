@@ -4,6 +4,11 @@ import { env } from "../env";
 let cachedTransporter: nodemailer.Transporter | null = null;
 let checked = false;
 
+const SMTP_CONNECTION_TIMEOUT_MS = 10000;
+const SMTP_GREETING_TIMEOUT_MS = 10000;
+const SMTP_SOCKET_TIMEOUT_MS = 20000;
+const SMTP_SEND_TIMEOUT_MS = 20000;
+
 function getTransporter() {
   if (checked) return cachedTransporter;
   checked = true;
@@ -17,6 +22,9 @@ function getTransporter() {
     host: env.SMTP_HOST,
     port: env.SMTP_PORT,
     secure: env.SMTP_SECURE,
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
     auth: {
       user: env.SMTP_USER,
       pass: env.SMTP_PASS,
@@ -29,6 +37,24 @@ function getTransporter() {
 function fromAddress() {
   const fromEmail = env.SMTP_FROM_EMAIL || env.SMTP_USER;
   return `"${env.SMTP_FROM_NAME}" <${fromEmail}>`;
+}
+
+async function sendMailWithTimeout(
+  transporter: nodemailer.Transporter,
+  options: nodemailer.SendMailOptions,
+) {
+  let timeoutId: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error("Koneksi SMTP timeout. Coba lagi beberapa saat."));
+    }, SMTP_SEND_TIMEOUT_MS);
+  });
+
+  try {
+    await Promise.race([transporter.sendMail(options), timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 export async function sendRegisterVerificationCodeEmail(input: {
@@ -126,7 +152,7 @@ export async function sendRegisterVerificationCodeEmail(input: {
     );
   }
 
-  await transporter.sendMail({
+  await sendMailWithTimeout(transporter, {
     from: fromAddress(),
     to: input.to,
     subject,
@@ -238,7 +264,7 @@ export async function sendPasswordResetLinkEmail(input: {
     );
   }
 
-  await transporter.sendMail({
+  await sendMailWithTimeout(transporter, {
     from: fromAddress(),
     to: input.to,
     subject,

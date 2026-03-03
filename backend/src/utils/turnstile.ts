@@ -7,6 +7,8 @@ type TurnstileVerifyResponse = {
   "error-codes"?: string[];
 };
 
+const TURNSTILE_VERIFY_TIMEOUT_MS = 12000;
+
 function normalizeHost(value: string) {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return "";
@@ -53,11 +55,25 @@ export async function verifyTurnstileToken(input: {
   form.set("response", token);
   if (input.remoteIp) form.set("remoteip", input.remoteIp);
 
-  const res = await fetch(env.TURNSTILE_VERIFY_URL, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: form.toString(),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TURNSTILE_VERIFY_TIMEOUT_MS);
+
+  let res: Response;
+  try {
+    res = await fetch(env.TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new HttpError(504, "Verifikasi captcha timeout. Coba lagi.");
+    }
+    throw new HttpError(502, "Gagal menghubungi server captcha. Coba lagi.");
+  } finally {
+    clearTimeout(timeout);
+  }
 
   let data: TurnstileVerifyResponse = {};
   try {

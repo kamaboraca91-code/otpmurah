@@ -2,8 +2,12 @@ import { getCookie } from "./cookies";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
 export const USER_AUTH_EXPIRED_EVENT = "user-auth-expired";
+const DEFAULT_REQUEST_TIMEOUT_MS = 25000;
 
 type Json = Record<string, any>;
+type ApiFetchOptions = RequestInit & {
+  timeoutMs?: number;
+};
 
 async function safeJson(res: Response): Promise<Json> {
   try {
@@ -13,9 +17,11 @@ async function safeJson(res: Response): Promise<Json> {
   }
 }
 
-export async function apiFetch(path: string, options: RequestInit = {}) {
+export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, signal, ...fetchOptions } = options;
   const headers = new Headers(options.headers ?? {});
-  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const isFormData =
+    typeof FormData !== "undefined" && fetchOptions.body instanceof FormData;
   if (!isFormData) {
     headers.set("Content-Type", "application/json");
   } else {
@@ -28,11 +34,32 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     if (csrf) headers.set("x-csrf-token", csrf);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    credentials: "include",
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  const relayAbort = () => controller.abort();
+
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", relayAbort, { once: true });
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...fetchOptions,
+      credentials: "include",
+      headers,
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Request timeout. Coba lagi.");
+    }
+    throw err;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener("abort", relayAbort);
+  }
 
   const data = await safeJson(res);
   if (!res.ok) {

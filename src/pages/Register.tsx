@@ -244,6 +244,7 @@ export default function Register() {
       setSendingCode(true);
       const out = await apiFetch("/auth/register/request-code", {
         method: "POST",
+        timeoutMs: 15000,
         body: JSON.stringify({ email: emailNorm, captchaToken }),
       });
 
