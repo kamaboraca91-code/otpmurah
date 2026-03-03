@@ -7,6 +7,15 @@ import {
 import { publishTopupEvent } from "./topupRealtime";
 import { applyBalanceMutationTx } from "../balance/balanceMutations.service";
 
+const userTopupFieldSet = new Set<string>(
+  (((prisma as any)?._runtimeDataModel?.models?.UserTopup?.fields as
+    | Array<{ name?: string }>
+    | undefined) ?? [])
+    .map((f) => String(f?.name ?? ""))
+    .filter(Boolean),
+);
+const supportsTopupExpiredAt = userTopupFieldSet.has("expiredAt");
+
 function toInt(value: unknown) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.round(n) : 0;
@@ -29,6 +38,74 @@ function parseTopupStatus(raw?: string) {
   return "PENDING";
 }
 
+function parseMaybeDate(input: unknown): Date | undefined {
+  if (!input) return undefined;
+  if (input instanceof Date && !Number.isNaN(input.getTime())) return input;
+
+  if (typeof input === "number" && Number.isFinite(input)) {
+    const ms = input > 1_000_000_000_000 ? input : input * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return d;
+    return undefined;
+  }
+
+  const raw = String(input).trim();
+  if (!raw) return undefined;
+
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) {
+    const ms = numeric > 1_000_000_000_000 ? numeric : numeric * 1000;
+    const d = new Date(ms);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+
+  // Provider biasanya mengirim format "YYYY-MM-DD HH:mm:ss" tanpa timezone.
+  const ymd = raw.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/,
+  );
+  if (ymd) {
+    const [, y, m, d, hh, mm, ss = "0"] = ymd;
+    const utcMs = Date.UTC(
+      Number(y),
+      Number(m) - 1,
+      Number(d),
+      Number(hh) - 7, // asumsi WIB (UTC+7)
+      Number(mm),
+      Number(ss),
+    );
+    const parsed = new Date(utcMs);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const normalized = raw.includes(" ") && !raw.includes("T")
+    ? raw.replace(" ", "T")
+    : raw;
+  const d = new Date(normalized);
+  if (!Number.isNaN(d.getTime())) return d;
+  return undefined;
+}
+
+function applyExpiredStatus(input: {
+  providerStatus: string;
+  status: string;
+  expiredAt?: Date | null;
+}) {
+  const providerStatus = String(input.providerStatus ?? "").trim() || "PENDING";
+  const status = parseTopupStatus(input.status || providerStatus);
+  const expiredAt = input.expiredAt ?? null;
+  const isExpired = Boolean(
+    status === "PENDING" &&
+      expiredAt &&
+      expiredAt.getTime() <= Date.now(),
+  );
+
+  return {
+    providerStatus: isExpired ? "EXPIRED" : providerStatus,
+    status: isExpired ? "FAILED" : status,
+    expiredAt,
+  };
+}
+
 export function toTopupDto(row: any) {
   return {
     id: row.id,
@@ -49,6 +126,7 @@ export function toTopupDto(row: any) {
     panduanPembayaran: row.panduanPembayaran,
     paidAt: row.paidAt,
     creditedAt: row.creditedAt,
+    expiredAt: supportsTopupExpiredAt ? row.expiredAt ?? null : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -94,15 +172,34 @@ async function creditIfPaid(topupId: string) {
 
 function extractStatusData(res: any) {
   const data = res?.data && typeof res.data === "object" ? res.data : {};
-  const providerStatus = String(data?.status ?? "PENDING").trim();
-  const normalizedStatus = parseTopupStatus(providerStatus);
+  const providerStatusRaw = String(
+    firstOf(data?.status ?? res?.status ?? "PENDING"),
+  ).trim();
+  const expiredAt = parseMaybeDate(
+    firstOf(
+      data?.expired_at ??
+        data?.expiredAt ??
+        data?.expires_at ??
+        data?.expiresAt ??
+        res?.expired_at ??
+        res?.expiredAt ??
+        res?.expires_at ??
+        res?.expiresAt,
+    ),
+  );
+  const normalized = applyExpiredStatus({
+    providerStatus: providerStatusRaw,
+    status: providerStatusRaw,
+    expiredAt,
+  });
   const directUrl = String(data?.direct_url ?? "").trim() || null;
   const qrisUrl = String(data?.qris_url ?? "").trim() || null;
   const qrisImage = String(data?.qris_image ?? "").trim() || null;
 
   return {
-    providerStatus,
-    status: normalizedStatus,
+    providerStatus: normalized.providerStatus,
+    status: normalized.status,
+    expiredAt: normalized.expiredAt,
     providerRef: String(data?.order_id ?? "").trim() || null,
     providerTrxId: String(data?.signature ?? "").trim() || null,
     totalBayar: toInt(data?.total_amount ?? data?.amount_paid ?? data?.amount),
@@ -142,6 +239,66 @@ async function publishTopupUpdate(
   });
 }
 
+async function failTopupIfExpired(topup: {
+  id: string;
+  status: string;
+  expiredAt?: Date | null;
+}) {
+  if (!supportsTopupExpiredAt) return null;
+  if (String(topup.status ?? "").toUpperCase() !== "PENDING") return null;
+  if (!topup.expiredAt) return null;
+  if (topup.expiredAt.getTime() > Date.now()) return null;
+
+  const lock = await prisma.userTopup.updateMany({
+    where: {
+      id: topup.id,
+      status: "PENDING",
+    },
+    data: {
+      status: "FAILED",
+      providerStatus: "EXPIRED",
+    },
+  });
+  if (lock.count === 0) {
+    return prisma.userTopup.findUnique({ where: { id: topup.id } });
+  }
+
+  await publishTopupUpdate(topup.id, "updated");
+  return prisma.userTopup.findUnique({ where: { id: topup.id } });
+}
+
+export async function expirePendingTopupsForUser(userId: string) {
+  if (!supportsTopupExpiredAt) return 0;
+
+  const now = new Date();
+  const expiredRows = await prisma.userTopup.findMany({
+    where: {
+      userId,
+      status: "PENDING",
+      expiredAt: {
+        lte: now,
+      },
+    },
+    select: { id: true },
+  });
+  if (expiredRows.length === 0) return 0;
+
+  const ids = expiredRows.map((x) => x.id);
+  const updated = await prisma.userTopup.updateMany({
+    where: {
+      id: { in: ids },
+      status: "PENDING",
+    },
+    data: {
+      status: "FAILED",
+      providerStatus: "EXPIRED",
+    },
+  });
+
+  await Promise.all(ids.map((id) => publishTopupUpdate(id, "updated")));
+  return updated.count;
+}
+
 export async function createTopupForUser(input: {
   userId: string;
   amount: number;
@@ -159,6 +316,8 @@ export async function createTopupForUser(input: {
     select: { id: true, email: true, name: true },
   });
   if (!user) throw new HttpError(404, "User tidak ditemukan");
+
+  await expirePendingTopupsForUser(input.userId);
 
   const existingPending = await prisma.userTopup.findFirst({
     where: {
@@ -184,6 +343,9 @@ export async function createTopupForUser(input: {
   });
 
   const normalized = extractStatusData(createRes);
+  const expiredAtData = supportsTopupExpiredAt
+    ? { expiredAt: normalized.expiredAt }
+    : {};
   const saved = await prisma.userTopup.create({
     data: {
       userId: input.userId,
@@ -200,6 +362,7 @@ export async function createTopupForUser(input: {
       checkoutUrl: normalized.checkoutUrl,
       qrLink: normalized.qrLink,
       qrString: normalized.qrString,
+      ...expiredAtData,
       nomorVa: normalized.nomorVa,
       panduanPembayaran: normalized.panduanPembayaran,
       rawCreate: createRes as any,
@@ -226,16 +389,31 @@ export async function syncTopupStatusForUser(userId: string, topupId: string) {
     throw new HttpError(400, "Topup sudah dibatalkan");
   }
 
+  const alreadyExpired = await failTopupIfExpired(topup);
+  if (alreadyExpired) {
+    return toTopupDto(alreadyExpired);
+  }
+
   const statusRes = await myPgCheckOrderStatus({
     orderId: topup.reffId,
   });
 
   const normalized = extractStatusData(statusRes);
+  const mergedExpiredAt = supportsTopupExpiredAt
+    ? normalized.expiredAt ?? (topup as any).expiredAt ?? null
+    : null;
+  const mergedStatus = applyExpiredStatus({
+    providerStatus: normalized.providerStatus || topup.providerStatus,
+    status: normalized.status || topup.status,
+    expiredAt: mergedExpiredAt,
+  });
+  const expiredAtData = supportsTopupExpiredAt ? { expiredAt: mergedExpiredAt } : {};
+
   const updated = await prisma.userTopup.update({
     where: { id: topup.id },
     data: {
-      providerStatus: normalized.providerStatus || topup.providerStatus,
-      status: normalized.status,
+      providerStatus: mergedStatus.providerStatus,
+      status: mergedStatus.status,
       providerRef: normalized.providerRef ?? topup.providerRef,
       providerTrxId: normalized.providerTrxId ?? topup.providerTrxId,
       totalBayar: normalized.totalBayar || topup.totalBayar,
@@ -244,10 +422,11 @@ export async function syncTopupStatusForUser(userId: string, topupId: string) {
       checkoutUrl: normalized.checkoutUrl ?? topup.checkoutUrl,
       qrLink: normalized.qrLink ?? topup.qrLink,
       qrString: normalized.qrString ?? topup.qrString,
+      ...expiredAtData,
       nomorVa: normalized.nomorVa ?? topup.nomorVa,
       panduanPembayaran: normalized.panduanPembayaran ?? topup.panduanPembayaran,
       rawStatus: statusRes as any,
-      ...(normalized.status === "PAID" ? { paidAt: new Date() } : {}),
+      ...(mergedStatus.status === "PAID" ? { paidAt: new Date() } : {}),
     },
   });
 
@@ -321,11 +500,29 @@ export function parseMyPgWebhookPayload(payload: Record<string, unknown>) {
   const status = String(
     firstOf(dataObj.status ?? payload.status ?? "PENDING") ?? "PENDING",
   ).trim();
+  const expiredAt = parseMaybeDate(
+    firstOf(
+      dataObj.expired_at ??
+        dataObj.expiredAt ??
+        dataObj.expires_at ??
+        dataObj.expiresAt ??
+        payload.expired_at ??
+        payload.expiredAt ??
+        payload.expires_at ??
+        payload.expiresAt,
+    ),
+  );
+  const normalized = applyExpiredStatus({
+    providerStatus: status,
+    status,
+    expiredAt,
+  });
 
   return {
     reffId,
-    providerStatus: status,
-    status: parseTopupStatus(status),
+    providerStatus: normalized.providerStatus,
+    status: normalized.status,
+    expiredAt: normalized.expiredAt,
     providerRef:
       String(firstOf(dataObj.order_id ?? payload.order_id ?? "") ?? "").trim() || null,
     providerTrxId:
@@ -356,11 +553,21 @@ export async function applyMyPgWebhook(payload: Record<string, unknown>) {
   });
   if (!topup) return null;
 
+  const mergedExpiredAt = supportsTopupExpiredAt
+    ? parsed.expiredAt ?? (topup as any).expiredAt ?? null
+    : null;
+  const mergedStatus = applyExpiredStatus({
+    providerStatus: parsed.providerStatus || topup.providerStatus,
+    status: parsed.status || topup.status,
+    expiredAt: mergedExpiredAt,
+  });
+  const expiredAtData = supportsTopupExpiredAt ? { expiredAt: mergedExpiredAt } : {};
+
   const updated = await prisma.userTopup.update({
     where: { id: topup.id },
     data: {
-      providerStatus: parsed.providerStatus || topup.providerStatus,
-      status: parsed.status,
+      providerStatus: mergedStatus.providerStatus,
+      status: mergedStatus.status,
       providerRef: parsed.providerRef ?? topup.providerRef,
       providerTrxId: parsed.providerTrxId ?? topup.providerTrxId,
       totalBayar: parsed.totalBayar || topup.totalBayar,
@@ -369,10 +576,11 @@ export async function applyMyPgWebhook(payload: Record<string, unknown>) {
       checkoutUrl: parsed.checkoutUrl ?? topup.checkoutUrl,
       qrLink: parsed.qrLink ?? topup.qrLink,
       qrString: parsed.qrString ?? topup.qrString,
+      ...expiredAtData,
       nomorVa: parsed.nomorVa ?? topup.nomorVa,
       panduanPembayaran: parsed.panduanPembayaran ?? topup.panduanPembayaran,
       rawWebhook: payload as any,
-      ...(parsed.status === "PAID" ? { paidAt: new Date() } : {}),
+      ...(mergedStatus.status === "PAID" ? { paidAt: new Date() } : {}),
     },
   });
 

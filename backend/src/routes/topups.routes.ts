@@ -5,6 +5,7 @@ import {
   applyMyPgWebhook,
   cancelTopupForUser,
   createTopupForUser,
+  expirePendingTopupsForUser,
   syncTopupStatusForUser,
   toTopupDto,
 } from "../modules/topups/topup.service";
@@ -17,6 +18,8 @@ export const topupsRoutes = Router();
 export const myPgWebhookRoutes = Router();
 
 topupsRoutes.get("/", requireAuth, async (req, res) => {
+  await expirePendingTopupsForUser(req.userId!);
+
   const [items, user] = await Promise.all([
     prisma.userTopup.findMany({
       where: { userId: req.userId! },
@@ -107,6 +110,10 @@ topupsRoutes.get("/stream", requireAuth, async (req, res) => {
 
   const unsubscribe = subscribeTopupEvents(req.userId!, (event) => {
     send("topup_update", event);
+  });
+
+  void expirePendingTopupsForUser(req.userId!).catch(() => {
+    /* ignore expiring errors inside SSE channel */
   });
 
   const heartbeat = setInterval(() => {

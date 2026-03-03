@@ -182,6 +182,7 @@ model UserTopup {
 
   paidAt         DateTime?
   creditedAt     DateTime?
+  expiredAt      DateTime?
 
   rawCreate      Json?
   rawStatus      Json?
@@ -192,6 +193,7 @@ model UserTopup {
 
   @@index([userId, createdAt])
   @@index([userId, status])
+  @@index([userId, status, expiredAt])
   @@index([reffId])
 }
 

@@ -1,4 +1,4 @@
-import React, { createContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useEffect, useMemo, useState } from "react";
 import {
   USER_AUTH_EXPIRED_EVENT,
   apiFetch,
@@ -28,7 +28,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const recoveringSessionRef = useRef(false);
 
   async function refresh() {
     const data = await apiFetch("/auth/refresh", { method: "POST" });
@@ -86,13 +85,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         await reloadMe();
       } catch {
-        try {
-          await refresh();
-        } catch {
-          setUser(null);
-          setAccessToken(null);
-          setUserBearerToken(null);
-        }
+        setUser(null);
+        setAccessToken(null);
+        setUserBearerToken(null);
       } finally {
         setIsLoading(false);
       }
@@ -102,17 +97,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const onExpired = async () => {
       const hadActiveUser = Boolean(user);
-      if (hadActiveUser && !recoveringSessionRef.current) {
-        recoveringSessionRef.current = true;
-        try {
-          await refresh();
-          return;
-        } catch {
-          // fall through to force logout
-        } finally {
-          recoveringSessionRef.current = false;
-        }
-      }
 
       setUser(null);
       setAccessToken(null);

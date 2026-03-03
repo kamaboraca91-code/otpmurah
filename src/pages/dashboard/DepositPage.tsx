@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../lib/api";
 import { sileo } from "sileo";
 import { useAuth } from "../../auth/useAuth";
@@ -6,9 +6,7 @@ import {
   Icon,
   Button,
   DropdownSelect,
-  Badge,
   Card,
-  CardHeader,
   Modal,
 } from "../../components/ui";
 
@@ -31,6 +29,7 @@ type Topup = {
   createdAt: string;
   updatedAt: string;
   creditedAt?: string | null;
+  expiredAt?: string | null;
 };
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -58,6 +57,29 @@ function formatTime(iso: string) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function parseIsoMs(value?: string | null) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.getTime();
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function formatCountdown(ms: number) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
+  }
+  return `${pad2(minutes)}:${pad2(seconds)}`;
 }
 
 function relativeTime(iso: string): string {
@@ -102,7 +124,7 @@ const statusDotColor: Record<string, string> = {
   rose: "bg-rose-400",
 };
 
-/* ─── Quick Amount Chip ─── */
+/* â”€â”€â”€ Quick Amount Chip â”€â”€â”€ */
 function QuickChip({
   value,
   active,
@@ -133,7 +155,7 @@ function QuickChip({
   );
 }
 
-/* ─── Status Badge ─── */
+/* â”€â”€â”€ Status Badge â”€â”€â”€ */
 function StatusBadge({ status }: { status: string }) {
   const tone = statusTone(status);
   return (
@@ -170,7 +192,9 @@ export default function DepositPage() {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTableLoading, setHistoryTableLoading] = useState(false);
   const [scrollToQrisAfterCreate, setScrollToQrisAfterCreate] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const qrisDetailRef = useRef<HTMLDivElement | null>(null);
+  const autoExpireSyncRef = useRef<string | null>(null);
 
   /* Cancel modal state */
   const [cancelModal, setCancelModal] = useState<{
@@ -199,6 +223,23 @@ export default function DepositPage() {
     [items]
   );
   const activeInvoice = useMemo(() => pendingItems[0] ?? null, [pendingItems]);
+  const activeInvoiceExpiredMs = useMemo(
+    () => parseIsoMs(activeInvoice?.expiredAt ?? null),
+    [activeInvoice?.expiredAt]
+  );
+  const activeInvoiceCountdownMs = useMemo(() => {
+    if (!activeInvoice || String(activeInvoice.status).toUpperCase() !== "PENDING") return 0;
+    if (!activeInvoiceExpiredMs) return 0;
+    return Math.max(0, activeInvoiceExpiredMs - nowMs);
+  }, [activeInvoice, activeInvoiceExpiredMs, nowMs]);
+  const activeInvoiceHasCountdown = Boolean(
+    activeInvoice &&
+      String(activeInvoice.status).toUpperCase() === "PENDING" &&
+      activeInvoiceExpiredMs
+  );
+  const activeInvoiceCountdownLabel = activeInvoiceHasCountdown
+    ? formatCountdown(activeInvoiceCountdownMs)
+    : "--:--";
 
   const filteredItems = useMemo(() => {
     const q = historyQuery.trim().toLowerCase();
@@ -226,17 +267,7 @@ export default function DepositPage() {
     return filteredItems.slice(start, start + HISTORY_PAGE_SIZE);
   }, [filteredItems, historyPage]);
 
-  const stats = useMemo(() => {
-    const total = items.length;
-    const paid = items.filter((i) => i.status.toUpperCase() === "PAID").length;
-    const pending = items.filter((i) => i.status.toUpperCase() === "PENDING").length;
-    const totalAmount = items
-      .filter((i) => i.status.toUpperCase() === "PAID")
-      .reduce((sum, i) => sum + (Number(i.totalDiterima ?? i.amount) || 0), 0);
-    return { total, paid, pending, totalAmount };
-  }, [items]);
-
-  /* ─── API Calls ─── */
+  /* â”€â”€â”€ API Calls â”€â”€â”€ */
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -369,10 +400,40 @@ export default function DepositPage() {
     }
   }, []);
 
-  /* ─── Effects ─── */
+  /* â”€â”€â”€ Effects â”€â”€â”€ */
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!activeInvoice) {
+      autoExpireSyncRef.current = null;
+      return;
+    }
+
+    if (String(activeInvoice.status).toUpperCase() !== "PENDING") {
+      autoExpireSyncRef.current = null;
+      return;
+    }
+
+    if (!activeInvoiceExpiredMs || activeInvoiceCountdownMs > 0) {
+      if (autoExpireSyncRef.current !== activeInvoice.id) {
+        autoExpireSyncRef.current = null;
+      }
+      return;
+    }
+
+    if (autoExpireSyncRef.current === activeInvoice.id) return;
+    autoExpireSyncRef.current = activeInvoice.id;
+    void syncOne(activeInvoice.id);
+  }, [activeInvoice, activeInvoiceCountdownMs, activeInvoiceExpiredMs, syncOne]);
 
   useEffect(() => {
     const streamUrl = `${API_BASE}/api/topups/stream`;
@@ -442,10 +503,10 @@ export default function DepositPage() {
     return () => window.clearTimeout(timer);
   }, [activeInvoice, scrollToQrisAfterCreate]);
 
-  /* ─── Render ─── */
+  /* â”€â”€â”€ Render â”€â”€â”€ */
   return (
     <>
-      {/* ════════ CANCEL MODAL ════════ */}
+      {/* â•â•â•â•â•â•â•â• CANCEL MODAL â•â•â•â•â•â•â•â• */}
       <Modal
         open={cancelModal.open}
         title="Batalkan Invoice"
@@ -503,7 +564,7 @@ export default function DepositPage() {
 
       <div className="space-y-6">
 
-        {/* ════════ CREATE + QRIS ════════ */}
+        {/* â•â•â•â•â•â•â•â• CREATE + QRIS â•â•â•â•â•â•â•â• */}
         <div className="grid gap-5 lg:grid-cols-5">
           {/* Create Invoice */}
           <Card className="lg:col-span-2 !p-0 overflow-hidden border-0 shadow-sm">
@@ -682,6 +743,14 @@ export default function DepositPage() {
                             label: "Dibuat",
                             value: formatTime(activeInvoice.createdAt),
                           },
+                          ...(activeInvoice.expiredAt
+                            ? [
+                                {
+                                  label: "Batas Bayar",
+                                  value: formatTime(activeInvoice.expiredAt),
+                                },
+                              ]
+                            : []),
                         ].map((row) => (
                           <div
                             key={row.label}
@@ -700,6 +769,51 @@ export default function DepositPage() {
                           </div>
                         ))}
                       </div>
+
+                      {activeInvoiceHasCountdown && (
+                        <div
+                          className={cx(
+                            "flex items-center justify-between rounded-xl border px-4 py-3",
+                            activeInvoiceCountdownMs === 0
+                              ? "border-rose-200/70 bg-rose-50/60"
+                              : "border-amber-200/70 bg-amber-50/60"
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={cx(
+                                "flex h-8 w-8 items-center justify-center rounded-lg",
+                                activeInvoiceCountdownMs === 0
+                                  ? "bg-rose-100 text-rose-600"
+                                  : "bg-amber-100 text-amber-600"
+                              )}
+                            >
+                              <Icon
+                                name="iconify:solar:clock-circle-bold-duotone"
+                                className="h-4 w-4"
+                              />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-bold text-slate-700">
+                                Countdown pembayaran
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                Otomatis gagal jika melewati batas waktu
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className={cx(
+                              "font-mono text-lg font-bold tracking-wide",
+                              activeInvoiceCountdownMs === 0
+                                ? "text-rose-600"
+                                : "text-amber-700"
+                            )}
+                          >
+                            {activeInvoiceCountdownLabel}
+                          </span>
+                        </div>
+                      )}
 
                       {/* Action buttons */}
                       <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
@@ -755,7 +869,7 @@ export default function DepositPage() {
           </div>
         </div>
 
-        {/* ════════ HISTORY ════════ */}
+        {/* â•â•â•â•â•â•â•â• HISTORY â•â•â•â•â•â•â•â• */}
         <Card className="!p-0 overflow-hidden border-0 shadow-sm">
           {/* Header */}
           <div className="border-b border-slate-100/80 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4">
@@ -970,7 +1084,7 @@ export default function DepositPage() {
                                 name="iconify:solar:minus-circle-linear"
                                 className="h-3.5 w-3.5"
                               />
-                              —
+                              â€”
                             </span>
                           )}
                         </td>
@@ -988,7 +1102,7 @@ export default function DepositPage() {
               <p className="text-[11px] text-slate-400">
                 Menampilkan{" "}
                 <span className="font-bold text-slate-600">
-                  {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}–
+                  {(historyPage - 1) * HISTORY_PAGE_SIZE + 1}â€“
                   {Math.min(historyPage * HISTORY_PAGE_SIZE, filteredItems.length)}
                 </span>{" "}
                 dari <span className="font-bold text-slate-600">{filteredItems.length}</span> data
@@ -1022,3 +1136,4 @@ export default function DepositPage() {
     </>
   );
 }
+
