@@ -26,6 +26,15 @@ function extractProviderMessage(data: Json) {
   return String(data?.message ?? data?.error_msg ?? data?.msg ?? "").trim();
 }
 
+function extractTextMessage(text: string) {
+  const clean = String(text ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "";
+  return clean.slice(0, 220);
+}
+
 function mapProviderError(message: string) {
   if (/qris payload configuration is missing/i.test(message)) {
     return new HttpError(
@@ -36,12 +45,18 @@ function mapProviderError(message: string) {
   return new HttpError(502, message || "MY PG request gagal");
 }
 
-async function safeJson(res: Response): Promise<Json> {
+async function safeJson(text: string): Promise<Json> {
   try {
-    return (await res.json()) as Json;
+    return JSON.parse(text) as Json;
   } catch {
     return {};
   }
+}
+
+async function readProviderResponse(res: Response) {
+  const text = await res.text();
+  const data = await safeJson(text);
+  return { data, text };
 }
 
 export type MyPgCreateOrderInput = {
@@ -67,21 +82,31 @@ export async function myPgCreateOrder(input: MyPgCreateOrderInput) {
     via: String(input.via ?? "").trim() || "Web",
   };
 
-  const res = await fetch(`${baseUrl()}/create`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": env.MYPG_API_KEY,
-      id_merchant: env.MYPG_MERCHANT_ID,
-    },
-    body: JSON.stringify(payload),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}/create`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.MYPG_API_KEY,
+        id_merchant: env.MYPG_MERCHANT_ID,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err: any) {
+    throw new HttpError(
+      502,
+      `Gagal koneksi ke MY PG. ${String(err?.message ?? "Network error")}`,
+    );
+  }
 
-  const data = await safeJson(res);
+  const { data, text } = await readProviderResponse(res);
+  const providerMessage =
+    extractProviderMessage(data) || extractTextMessage(text) || "";
 
   if (!res.ok) {
     throw mapProviderError(
-      extractProviderMessage(data) || `MY PG request failed (${res.status})`,
+      providerMessage || `MY PG request failed (HTTP ${res.status})`,
     );
   }
 
@@ -90,7 +115,7 @@ export async function myPgCreateOrder(input: MyPgCreateOrderInput) {
   }
 
   if (!isSuccessStatus(data.status)) {
-    throw mapProviderError(extractProviderMessage(data) || "MY PG gagal membuat transaksi");
+    throw mapProviderError(providerMessage || "MY PG gagal membuat transaksi");
   }
 
   return data;
@@ -107,19 +132,29 @@ export async function myPgCheckOrderStatus(input: MyPgCheckStatusInput) {
     env.MYPG_MERCHANT_ID,
   )}/${encodeURIComponent(input.orderId)}`;
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      "x-api-key": env.MYPG_API_KEY,
-      id_merchant: env.MYPG_MERCHANT_ID,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "x-api-key": env.MYPG_API_KEY,
+        id_merchant: env.MYPG_MERCHANT_ID,
+      },
+    });
+  } catch (err: any) {
+    throw new HttpError(
+      502,
+      `Gagal koneksi ke MY PG (status check). ${String(err?.message ?? "Network error")}`,
+    );
+  }
 
-  const data = await safeJson(res);
+  const { data, text } = await readProviderResponse(res);
+  const providerMessage =
+    extractProviderMessage(data) || extractTextMessage(text) || "";
 
   if (!res.ok) {
     throw mapProviderError(
-      extractProviderMessage(data) || `MY PG status check failed (${res.status})`,
+      providerMessage || `MY PG status check failed (HTTP ${res.status})`,
     );
   }
 
@@ -129,7 +164,7 @@ export async function myPgCheckOrderStatus(input: MyPgCheckStatusInput) {
 
   if (!isSuccessStatus(data.status)) {
     throw mapProviderError(
-      extractProviderMessage(data) || "MY PG gagal cek status transaksi",
+      providerMessage || "MY PG gagal cek status transaksi",
     );
   }
 
