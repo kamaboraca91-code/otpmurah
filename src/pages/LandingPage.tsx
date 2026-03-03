@@ -220,9 +220,6 @@ function Header({ branding }: { branding: WebsiteBranding }) {
                 <div className="truncate text-[15px] font-extrabold tracking-wide text-slate-900 dark:text-slate-100">
                   {siteName}
                 </div>
-                <div className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  {siteDescription}
-                </div>
               </div>
             </a>
 
@@ -244,7 +241,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
             </nav>
 
             <div className="hidden items-center gap-2 lg:flex">
-              <ThemeToggleButton showLabel />
+            <ThemeToggleButton size="md" className="shrink-0" />
 
               <Link to="/login">
                 <Button leftIcon="iconify:solar:login-3-bold-duotone" variant="secondary" size="sm">
@@ -259,7 +256,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
             </div>
 
             <div className="flex items-center gap-2 lg:hidden">
-              <ThemeToggleButton />
+              <ThemeToggleButton size="md" className="shrink-0" />
 
               <button
                 type="button"
@@ -697,7 +694,7 @@ function ProductSection() {
                       className="group flex h-12 items-center gap-3 rounded-xl border border-slate-200/60 bg-white px-4 text-sm font-semibold text-slate-700 transition-all duration-200 hover:border-emerald-200 hover:bg-emerald-50/50 hover:shadow-sm"
                       type="button"
                     >
-                      <IconifyIcon icon={s.icon} width={22} />
+                      <Icon name={`iconify:${s.icon}`} className="w-6 h-6" />
                       <span className="flex-1 text-left text-xs">{s.name}</span>
                       <Icon name="arrowRight" className="h-3.5 w-3.5 text-slate-400 transition-transform group-hover:translate-x-0.5" />
                     </button>

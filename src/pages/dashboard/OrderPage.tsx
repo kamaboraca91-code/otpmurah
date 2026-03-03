@@ -223,9 +223,10 @@ export default function OrderPage() {
   const fallbackDrawerPointerIdRef = useRef<number | null>(null);
   const fallbackDrawerStartYRef = useRef<number | null>(null);
   const fallbackDrawerStartOffsetRef = useRef(0);
-  const fallbackDrawerStartTsRef = useRef(0);
   const fallbackDrawerMovedRef = useRef(false);
   const fallbackDrawerIgnoreBackdropClickRef = useRef(false);
+  const fallbackDrawerRafRef = useRef<number | null>(null);
+  const fallbackDrawerPendingOffsetRef = useRef<number | null>(null);
   const fallbackDrawerSnapTimerRef = useRef<number | null>(null);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined"
@@ -605,15 +606,36 @@ export default function OrderPage() {
     fallbackDrawerSnapTimerRef.current = null;
   }
 
+  function clearFallbackDrawerRaf() {
+    if (typeof window !== "undefined" && fallbackDrawerRafRef.current !== null) {
+      window.cancelAnimationFrame(fallbackDrawerRafRef.current);
+    }
+    fallbackDrawerRafRef.current = null;
+    fallbackDrawerPendingOffsetRef.current = null;
+  }
+
+  function scheduleFallbackDrawerOffset(nextOffset: number) {
+    fallbackDrawerPendingOffsetRef.current = nextOffset;
+    if (fallbackDrawerRafRef.current !== null || typeof window === "undefined") return;
+
+    fallbackDrawerRafRef.current = window.requestAnimationFrame(() => {
+      fallbackDrawerRafRef.current = null;
+      const next = fallbackDrawerPendingOffsetRef.current;
+      fallbackDrawerPendingOffsetRef.current = null;
+      if (next === null) return;
+      setFallbackDrawerOffset(next);
+    });
+  }
+
   function resetFallbackDrawerDragState() {
     setFallbackDrawerDragging(false);
     setFallbackDrawerOffset(null);
     fallbackDrawerPointerIdRef.current = null;
     fallbackDrawerStartYRef.current = null;
     fallbackDrawerStartOffsetRef.current = 0;
-    fallbackDrawerStartTsRef.current = 0;
     fallbackDrawerMovedRef.current = false;
     fallbackDrawerIgnoreBackdropClickRef.current = false;
+    clearFallbackDrawerRaf();
   }
 
   function handleFallbackDrawerPointerDown(event: any) {
@@ -621,10 +643,10 @@ export default function OrderPage() {
     if (event.pointerType === "mouse" && event.button !== 0) return;
 
     clearFallbackDrawerSnapTimer();
+    clearFallbackDrawerRaf();
     fallbackDrawerPointerIdRef.current = event.pointerId;
     fallbackDrawerStartYRef.current = Number(event.clientY ?? 0);
     fallbackDrawerStartOffsetRef.current = Number(fallbackDrawerOffset ?? 0);
-    fallbackDrawerStartTsRef.current = performance.now();
     fallbackDrawerMovedRef.current = false;
     setFallbackDrawerDragging(true);
     event.currentTarget?.setPointerCapture?.(event.pointerId);
@@ -644,7 +666,8 @@ export default function OrderPage() {
 
     if (Math.abs(delta) > 4) fallbackDrawerMovedRef.current = true;
     if (Math.abs(delta) > 6) event.preventDefault();
-    setFallbackDrawerOffset(nextOffset);
+    if (Math.abs(delta) < 1) return;
+    scheduleFallbackDrawerOffset(nextOffset);
   }
 
   function finishFallbackDrawerPointerInteraction(event: any) {
@@ -653,16 +676,12 @@ export default function OrderPage() {
 
     event.currentTarget?.releasePointerCapture?.(event.pointerId);
 
-    const startY = fallbackDrawerStartYRef.current ?? Number(event.clientY ?? 0);
-    const endY = Number(event.clientY ?? startY);
-    const delta = endY - startY;
-    const elapsedMs = Math.max(16, performance.now() - fallbackDrawerStartTsRef.current);
-    const velocity = delta / elapsedMs;
-    const currentOffset = Number(fallbackDrawerOffset ?? 0);
-    const closeThresholdPx = Math.min(220, Math.max(120, window.innerHeight * 0.22));
-    const shouldCloseByDistance = currentOffset > closeThresholdPx;
-    const shouldCloseByVelocity = velocity > 1.15;
-    const shouldClose = shouldCloseByDistance || shouldCloseByVelocity;
+    const currentOffset = Number(
+      fallbackDrawerPendingOffsetRef.current ?? fallbackDrawerOffset ?? 0
+    );
+    const sheetHeightPx = window.innerHeight * 0.86;
+    const closeThresholdPx = sheetHeightPx * 0.88;
+    const shouldClose = currentOffset >= closeThresholdPx;
     const moved = fallbackDrawerMovedRef.current;
 
     fallbackDrawerIgnoreBackdropClickRef.current = moved;
@@ -671,8 +690,8 @@ export default function OrderPage() {
     fallbackDrawerPointerIdRef.current = null;
     fallbackDrawerStartYRef.current = null;
     fallbackDrawerStartOffsetRef.current = 0;
-    fallbackDrawerStartTsRef.current = 0;
     fallbackDrawerMovedRef.current = false;
+    clearFallbackDrawerRaf();
 
     if (shouldClose && fallbackOrderingPrice === null) {
       setFallbackDrawerOffset(null);
@@ -695,6 +714,7 @@ export default function OrderPage() {
     }
     return () => {
       clearFallbackDrawerSnapTimer();
+      clearFallbackDrawerRaf();
     };
   }, [fallbackModalOpen, isMobile]);
 
@@ -868,26 +888,22 @@ export default function OrderPage() {
       </>
     ) : null;
 
-  const fallbackBackdropStyle =
-    isMobile && fallbackDrawerOffset !== null
-      ? {
-        opacity: Math.max(0.2, 1 - Math.max(0, fallbackDrawerOffset) / 340),
-      }
-      : undefined;
+  const effectiveFallbackDrawerOffset = Math.max(0, Number(fallbackDrawerOffset ?? 0));
 
-  const fallbackDrawerShrinkPx = Math.max(0, Number(fallbackDrawerOffset ?? 0));
-  const fallbackDrawerMaxShrinkPx =
-    typeof window !== "undefined" ? Math.floor(window.innerHeight * 0.7) : 560;
-  const fallbackDrawerClampedShrinkPx = Math.min(fallbackDrawerShrinkPx, fallbackDrawerMaxShrinkPx);
+  const fallbackBackdropStyle = isMobile
+    ? {
+      opacity: Math.max(0.2, 1 - effectiveFallbackDrawerOffset / 340),
+    }
+    : undefined;
 
   const fallbackDrawerStyle =
-    isMobile && fallbackDrawerOffset !== null
+    isMobile && !fallbackModalClosing
       ? {
-        height: `calc(86dvh - ${fallbackDrawerClampedShrinkPx}px)`,
-        maxHeight: `calc(86dvh - ${fallbackDrawerClampedShrinkPx}px)`,
+        transform: `translate3d(0, ${effectiveFallbackDrawerOffset}px, 0)`,
+        willChange: "transform",
         transition: fallbackDrawerDragging
           ? "none"
-          : "height 320ms cubic-bezier(0.32, 0.72, 0, 1), max-height 320ms cubic-bezier(0.32, 0.72, 0, 1)",
+          : "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)",
       }
       : undefined;
 
@@ -1071,7 +1087,7 @@ export default function OrderPage() {
                   </p>
                 )}
 
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-2 mt-2 sm:grid-cols-2">
                   {visibleServices.map((s, idx) => {
                     const isSelected = selected?.code === s.code;
                     const iconUrl = `https://cdn.hero-sms.com/assets/img/service/${s.code}0.webp`;
@@ -1111,7 +1127,7 @@ export default function OrderPage() {
                             </svg>
                           </div>
                         )}
-
+ 
                         <div className="flex items-center gap-3">
                           <div
                             className={cn(
@@ -1542,13 +1558,13 @@ export default function OrderPage() {
         }
 
         .fallback-sheet-enter {
-          animation: fallbackSheetIn 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
+          animation: fallbackSheetIn 340ms cubic-bezier(0.32, 0.72, 0, 1);
           will-change: transform, opacity;
           backface-visibility: hidden;
         }
 
         .fallback-sheet-exit {
-          animation: fallbackSheetOut 250ms cubic-bezier(0.32, 0.72, 0, 1) both;
+          animation: fallbackSheetOut 250ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
           will-change: transform, opacity;
           backface-visibility: hidden;
         }

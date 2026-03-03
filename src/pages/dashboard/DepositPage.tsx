@@ -403,14 +403,6 @@ export default function DepositPage() {
   }, [upsertItem, reloadMe]);
 
   useEffect(() => {
-    if (connected || pendingItems.length === 0) return;
-    const timer = setInterval(() => {
-      pendingItems.slice(0, 3).forEach((x) => void syncOne(x.id));
-    }, 15_000);
-    return () => clearInterval(timer);
-  }, [connected, pendingItems, syncOne]);
-
-  useEffect(() => {
     setHistoryPage(1);
   }, [historyQuery, statusFilter]);
 
@@ -537,7 +529,7 @@ export default function DepositPage() {
                   )}
                 />
                 <span className="text-[10px] font-medium text-slate-400">
-                  {connected ? "Realtime terhubung" : "Polling mode"}
+                  {connected ? "Realtime terhubung" : "Realtime terputus (reconnecting...)"}
                 </span>
               </div>
 
