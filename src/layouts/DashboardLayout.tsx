@@ -54,16 +54,12 @@ export default function DashboardLayout() {
   const loc = useLocation();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
   const [websiteBranding, setWebsiteBranding] = useState<WebsiteBranding | null>(null);
 
   const profileRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(profileRef, () => setProfileOpen(false));
-  useClickOutside(notifRef, () => setNotifOpen(false));
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -105,11 +101,6 @@ export default function DashboardLayout() {
 
   const mainItems = items.filter((i) => i.group === "main");
   const systemItems = items.filter((i) => i.group === "system");
-
-  const currentPage = useMemo(() => {
-    const hit = items.find((x) => (x.end ? loc.pathname === x.to : loc.pathname.startsWith(x.to)));
-    return hit ?? { label: "Dashboard", icon: "iconify:solar:home-2-bold-duotone" };
-  }, [items, loc.pathname]);
 
   const onLogout = useCallback(async () => {
     setProfileOpen(false);
@@ -159,15 +150,15 @@ export default function DashboardLayout() {
         }
       `}</style>
 
-      <div className="h-screen overflow-hidden bg-slate-50/80">
+      <div className="min-h-[100dvh] h-[100dvh] overflow-hidden bg-slate-50/80 dark:bg-slate-950/90">
         {/* Ambient blurs */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div className="absolute -top-32 left-1/4 h-[420px] w-[420px] rounded-full bg-emerald-100/50 blur-[120px] animate-[pulse_8s_ease-in-out_infinite]" />
-          <div className="absolute bottom-[-5rem] right-[-5rem] h-[350px] w-[350px] rounded-full bg-emerald-50/60 blur-[100px] animate-[pulse_10s_ease-in-out_infinite_1s]" />
-          <div className="absolute top-1/2 left-[-8rem] h-[280px] w-[280px] rounded-full bg-emerald-100/30 blur-[100px] animate-[pulse_12s_ease-in-out_infinite_2s]" />
+        <div className="pointer-events-none fixed inset-0 hidden overflow-hidden md:block">
+          <div className="absolute -top-32 left-1/4 h-[420px] w-[420px] rounded-full bg-emerald-100/35 blur-[120px]" />
+          <div className="absolute bottom-[-5rem] right-[-5rem] h-[350px] w-[350px] rounded-full bg-emerald-50/45 blur-[100px]" />
+          <div className="absolute top-1/2 left-[-8rem] h-[280px] w-[280px] rounded-full bg-emerald-100/25 blur-[100px]" />
         </div>
 
-        <div className="relative flex h-screen">
+        <div className="relative flex h-[100dvh]">
           {/* ═══ SIDEBAR — Desktop ═══ */}
           <aside className="hidden w-[264px] shrink-0 flex-col border-r border-slate-200/70 bg-white/70 backdrop-blur-2xl md:flex h-screen sticky top-0">
             <SidebarBrand branding={websiteBranding} />
@@ -185,13 +176,10 @@ export default function DashboardLayout() {
               mobileOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
             )}
           >
-            <div
-              className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-              onClick={() => setMobileOpen(false)}
-            />
+            <div className="absolute inset-0 bg-slate-900/45" onClick={() => setMobileOpen(false)} />
             <div
               className={cx(
-                "absolute inset-y-0 left-0 w-[85%] max-w-[300px] bg-white shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out flex flex-col",
+                "absolute inset-y-0 left-0 w-[85%] max-w-[300px] transform-gpu bg-white shadow-2xl shadow-slate-900/20 transition-transform duration-300 ease-out flex flex-col",
                 mobileOpen ? "translate-x-0" : "-translate-x-full"
               )}
             >
@@ -205,10 +193,10 @@ export default function DashboardLayout() {
           </div>
 
           {/* ═══ MAIN CONTENT ═══ */}
-          <div className="flex min-w-0 flex-1 flex-col h-screen overflow-hidden">
+          <div className="flex min-w-0 flex-1 flex-col h-[100dvh] overflow-hidden">
             {/* Topbar */}
-            <header className="shrink-0 z-40 border-b border-slate-200/70 bg-white/70 backdrop-blur-2xl">
-              <div className="mx-auto flex items-center gap-3 px-4 py-[10px] sm:py-1.5 sm:px-6">
+            <header className="sticky top-0 shrink-0 z-40 border-b border-slate-200/70 bg-white/95 supports-[backdrop-filter]:bg-white/80 md:backdrop-blur-lg dark:border-slate-800/80 dark:bg-slate-950/95 dark:supports-[backdrop-filter]:bg-slate-950/80">
+              <div className="mx-auto flex items-center gap-3 px-4 py-2.5 sm:px-6">
                 <button
                   type="button"
                   className="group inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 md:hidden"
@@ -244,7 +232,6 @@ export default function DashboardLayout() {
                     )}
                     onClick={() => {
                       setProfileOpen(!profileOpen);
-                      setNotifOpen(false);
                     }}
                   >
                     <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
@@ -318,7 +305,7 @@ export default function DashboardLayout() {
             </header>
 
             {/* ═══ Scrollable content + footer ═══ */}
-            <div className="flex-1 overflow-x-hidden overflow-y-auto scroll-smooth">
+            <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
 
               <div className="flex min-h-full flex-col">
                 {/* Page content */}
@@ -336,7 +323,7 @@ export default function DashboardLayout() {
                 </main>
 
                 {/* Footer — always at the very bottom */}
-                <footer className="mt-auto shrink-0 border-t border-slate-200/70 bg-white/50 backdrop-blur">
+                <footer className="mt-auto shrink-0 border-t border-slate-200/70 bg-white/60 md:backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/70">
                   <div className="mx-auto flex flex-col gap-2 px-4 py-4 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <span>
                       © {new Date().getFullYear()} {websiteBranding?.siteName || "OTP Seller"} • Built with security

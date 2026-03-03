@@ -864,11 +864,11 @@ export default function NumbersPage() {
                     </div>
 
                     {/* â”€â”€ Actions â”€â”€ */}
-                    <div className="flex items-center gap-2.5 rounded-xl border border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white px-4 py-3.5">
+                    <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-slate-200/60 bg-gradient-to-r from-slate-50/80 to-white px-3.5 py-3 sm:grid-cols-2 sm:px-4 sm:py-3.5">
                       <Button
                         variant="secondary"
                         size="sm"
-                        className="w-full"
+                        className="w-full whitespace-nowrap"
                         isLoading={syncingId === selectedItem.id}
                         disabled={
                           syncingId === selectedItem.id ||
@@ -881,7 +881,7 @@ export default function NumbersPage() {
                         Sync Status
                       </Button>
                       {selectedIsCompleted ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60">
+                        <span className="inline-flex w-full items-center justify-center gap-1.5 rounded-full bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60 sm:justify-start">
                           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                           STATUS_COMPLETED
                         </span>
@@ -896,7 +896,7 @@ export default function NumbersPage() {
                           isLoading={completingId === selectedItem.id}
                           onClick={() => completeOne(selectedItem.id)}
                           leftIcon="check"
-                          className="!h-9 !text-xs !font-bold w-full"
+                          className="w-full whitespace-nowrap !h-9 !text-[11px] sm:!text-xs !font-bold"
                         >
                           Selesaikan Pesanan
                         </Button>
@@ -911,12 +911,12 @@ export default function NumbersPage() {
                           isLoading={cancelingId === selectedItem.id}
                           onClick={() => openCancelModal(selectedItem)}
                           leftIcon="x"
-                          className="!h-9 !text-xs !font-bold w-full"
+                          className="w-full whitespace-nowrap !h-9 !text-[11px] sm:!text-xs !font-bold"
                         >
                           Batalkan Order
                         </Button>
                       ) : (
-                        <span className="inline-flex w-full items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                        <span className="inline-flex w-full items-center justify-center gap-1.5 text-center text-[11px] font-medium text-slate-400 sm:justify-start sm:text-left">
                           <Icon name="iconify:solar:lock-bold-duotone" className="h-3.5 w-3.5" />
                           Pembatalan tersedia dalam {formatCountdown(selectedTiming.cancelInMs ?? 0)}
                         </span>

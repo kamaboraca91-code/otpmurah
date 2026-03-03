@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { createPortal } from "react-dom";
 import { adminFetch } from "../../lib/adminApi";
 import { sileo } from "sileo";
-import { Button, Card, Icon } from "../../components/ui";
+import { Button, Card, Icon, useModalPresence } from "../../components/ui";
 
 // ─── Types ───
 type Service = { code: string; name: string };
@@ -350,11 +350,13 @@ function Modal({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  const { mounted, isClosing } = useModalPresence(open);
+
   useEffect(() => {
-    if (!open) return;
+    if (!mounted) return;
     const previousOverflow = document.body.style.overflow;
     function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && open) onClose();
     }
     document.addEventListener("keydown", onEsc);
     document.body.style.overflow = "hidden";
@@ -362,21 +364,29 @@ function Modal({
       document.removeEventListener("keydown", onEsc);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [mounted, open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000]">
+    <div className={cx("fixed inset-0 z-[1000]", isClosing && "pointer-events-none")}>
       <button
         type="button"
-        className="modal-backdrop-enter absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] dark:bg-black/70"
+        className={cx(
+          "absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] dark:bg-black/70",
+          isClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+        )}
         onClick={onClose}
         aria-label="Close modal"
       />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="ui-modal-surface modal-panel-enter w-[92vw] max-w-lg overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/15 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
+        <div
+          className={cx(
+            "ui-modal-surface w-[92vw] max-w-lg overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/15 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",
+            isClosing ? "modal-panel-exit" : "modal-panel-enter"
+          )}
+        >
           <div className="ui-modal-header flex items-center justify-between border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4 dark:border-slate-700 dark:from-slate-800 dark:to-slate-900">
             <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{title}</div>
             <button

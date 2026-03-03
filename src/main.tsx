@@ -20,6 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <SeoManager />
           <Toaster
             position="top-center"
+            offset={{ top: 72, left: 12, right: 12, bottom: 12 }}
             options={{
               fill: "#171717",
               roundness: 16,

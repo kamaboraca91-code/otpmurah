@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../../lib/api";
 import { useNavigate } from "react-router-dom";
 import { sileo } from "sileo";
 import { createPortal } from "react-dom";
-import { Icon, Button, Card } from "../../components/ui";
+import { Icon, Button, Card, useModalPresence } from "../../components/ui";
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -37,6 +37,11 @@ type FallbackPriceOption = {
 };
 
 type FallbackModalTrigger = "manual" | "stock-out";
+
+const MOBILE_BREAKPOINT = "(max-width: 640px)";
+const MOBILE_SERVICE_BATCH = 30;
+const MOBILE_COUNTRY_BATCH = 24;
+const DESKTOP_SERVICE_BATCH = 80;
 
 /* ------------------------------------------------------------------ */
 /*  UTILS                                                              */
@@ -187,6 +192,10 @@ function SkeletonCountryRow() {
 export default function OrderPage() {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const serviceRequestSeqRef = useRef(0);
+  const countryRequestSeqRef = useRef(0);
+  const serviceAbortRef = useRef<AbortController | null>(null);
+  const countryAbortRef = useRef<AbortController | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [selected, setSelected] = useState<Service | null>(null);
   const [serviceQuery, setServiceQuery] = useState("");
@@ -207,9 +216,29 @@ export default function OrderPage() {
   const [fallbackOrderingPrice, setFallbackOrderingPrice] = useState<number | null>(null);
   const [fallbackModalTrigger, setFallbackModalTrigger] =
     useState<FallbackModalTrigger>("manual");
+  const { mounted: fallbackModalMounted, isClosing: fallbackModalClosing } =
+    useModalPresence(fallbackModalOpen);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia(MOBILE_BREAKPOINT).matches
+      : false
+  );
+  const [serviceLimit, setServiceLimit] = useState(
+    isMobile ? MOBILE_SERVICE_BATCH : DESKTOP_SERVICE_BATCH
+  );
+  const [countryLimit, setCountryLimit] = useState(
+    isMobile ? MOBILE_COUNTRY_BATCH : Number.MAX_SAFE_INTEGER
+  );
+  const deferredServiceQuery = useDeferredValue(serviceQuery);
+  const deferredCountryQuery = useDeferredValue(countryQuery);
 
   /* ---------- data fetching ---------- */
   async function load(isRefresh = false) {
+    const requestSeq = ++serviceRequestSeqRef.current;
+    serviceAbortRef.current?.abort();
+    const controller = new AbortController();
+    serviceAbortRef.current = controller;
+
     try {
       setServiceError(null);
       setLoading(true);
@@ -229,34 +258,50 @@ export default function OrderPage() {
       }
 
       const data = await apiJson(
-        isRefresh ? "/api/herosms/services?noCache=1" : "/api/herosms/services"
+        isRefresh ? "/api/herosms/services?noCache=1" : "/api/herosms/services",
+        { method: "GET", signal: controller.signal }
       );
+      if (serviceRequestSeqRef.current !== requestSeq || controller.signal.aborted) return;
       setServices(Array.isArray(data?.services) ? data.services : []);
     } catch (e: any) {
+      if (serviceRequestSeqRef.current !== requestSeq || controller.signal.aborted) return;
       setServiceError(e?.message || "Terjadi kesalahan");
     } finally {
+      if (serviceRequestSeqRef.current !== requestSeq) return;
       setLoading(false);
       setRefreshing(false);
     }
   }
 
   async function loadCountriesForService(serviceCode: string, noCache = false) {
+    const requestSeq = ++countryRequestSeqRef.current;
+    countryAbortRef.current?.abort();
+    const controller = new AbortController();
+    countryAbortRef.current = controller;
+
     try {
       setCountryError(null);
       setCountryLoading(true);
       const [cRes, oRes] = await Promise.all([
-        apiJson(noCache ? "/api/herosms/countries?noCache=1" : "/api/herosms/countries"),
+        apiJson(noCache ? "/api/herosms/countries?noCache=1" : "/api/herosms/countries", {
+          method: "GET",
+          signal: controller.signal,
+        }),
         apiJson(
-          `/api/herosms/top-countries?service=${encodeURIComponent(serviceCode)}&freePrice=1${noCache ? "&noCache=1" : ""}`
+          `/api/herosms/top-countries?service=${encodeURIComponent(serviceCode)}&freePrice=1${noCache ? "&noCache=1" : ""}`,
+          { method: "GET", signal: controller.signal }
         ),
       ]);
+      if (countryRequestSeqRef.current !== requestSeq || controller.signal.aborted) return;
       setCountries(Array.isArray(cRes?.countries) ? cRes.countries : []);
       setOffers(Array.isArray(oRes?.offers) ? oRes.offers : []);
     } catch (e: any) {
+      if (countryRequestSeqRef.current !== requestSeq || controller.signal.aborted) return;
       setCountryError(e?.message || "Gagal memuat negara");
       setCountries([]);
       setOffers([]);
     } finally {
+      if (countryRequestSeqRef.current !== requestSeq) return;
       setCountryLoading(false);
     }
   }
@@ -266,12 +311,10 @@ export default function OrderPage() {
     showToast = false,
     trigger: FallbackModalTrigger = "manual"
   ) {
-    const candidateOffer =
-      offers.find((item) => Number(item.country) === Number(countryId)) ?? null;
-    const candidateCountry =
-      countries.find((item) => Number(item.id) === Number(countryId)) ?? null;
-
-    const alternatives = parseFreePriceOptions(candidateOffer, Number(candidateOffer?.price ?? 0));
+    const normalizedId = Number(countryId);
+    const candidateOffer = offerByCountry.get(normalizedId) ?? null;
+    const candidateCountry = countryById.get(normalizedId) ?? null;
+    const alternatives = fallbackOptionsByCountry.get(normalizedId) ?? [];
 
     if (!candidateOffer || !candidateCountry || alternatives.length === 0) {
       if (showToast) {
@@ -407,6 +450,30 @@ export default function OrderPage() {
     load(false);
   }, []);
 
+  useEffect(
+    () => () => {
+      serviceAbortRef.current?.abort();
+      countryAbortRef.current?.abort();
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia(MOBILE_BREAKPOINT);
+    const onChange = () => setIsMobile(media.matches);
+
+    onChange();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    }
+
+    // Safari fallback
+    media.addListener(onChange);
+    return () => media.removeListener(onChange);
+  }, []);
+
   useEffect(() => {
     if (!selected?.code) {
       setCountries([]);
@@ -430,22 +497,38 @@ export default function OrderPage() {
   }, [selected?.code]);
 
   useEffect(() => {
-    if (!fallbackModalOpen) return;
+    if (!fallbackModalMounted) return;
     const prev = document.body.style.overflow;
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && fallbackModalOpen && fallbackOrderingPrice === null) {
+        setFallbackModalOpen(false);
+      }
+    };
+
     document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onEsc);
     return () => {
       document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onEsc);
     };
-  }, [fallbackModalOpen]);
+  }, [fallbackModalMounted, fallbackModalOpen, fallbackOrderingPrice]);
+
+  useEffect(() => {
+    setServiceLimit(isMobile ? MOBILE_SERVICE_BATCH : DESKTOP_SERVICE_BATCH);
+  }, [isMobile, deferredServiceQuery]);
+
+  useEffect(() => {
+    setCountryLimit(isMobile ? MOBILE_COUNTRY_BATCH : Number.MAX_SAFE_INTEGER);
+  }, [isMobile, deferredCountryQuery, selected?.code]);
 
   /* ---------- derived data ---------- */
   const filteredServices = useMemo(() => {
-    const t = serviceQuery.trim().toLowerCase();
+    const t = deferredServiceQuery.trim().toLowerCase();
     if (!t) return services;
     return services.filter(
       (s) => s.name.toLowerCase().includes(t) || s.code.toLowerCase().includes(t)
     );
-  }, [serviceQuery, services]);
+  }, [deferredServiceQuery, services]);
 
   const offerByCountry = useMemo(() => {
     const m = new Map<number, Offer>();
@@ -453,8 +536,25 @@ export default function OrderPage() {
     return m;
   }, [offers]);
 
+  const countryById = useMemo(() => {
+    const m = new Map<number, Country>();
+    countries.forEach((c) => m.set(c.id, c));
+    return m;
+  }, [countries]);
+
+  const fallbackOptionsByCountry = useMemo(() => {
+    const m = new Map<number, FallbackPriceOption[]>();
+    offers.forEach((offer) => {
+      m.set(
+        Number(offer.country),
+        parseFreePriceOptions(offer, Number(offer?.price ?? 0))
+      );
+    });
+    return m;
+  }, [offers]);
+
   const countryRows = useMemo(() => {
-    const t = countryQuery.trim().toLowerCase();
+    const t = deferredCountryQuery.trim().toLowerCase();
     const rows = countries
       .filter((c) => c.visible === 1)
       .map((c) => ({ c, o: offerByCountry.get(c.id) }))
@@ -470,28 +570,54 @@ export default function OrderPage() {
       });
 
     return filtered.sort((a, b) => (b.o!.count ?? 0) - (a.o!.count ?? 0));
-  }, [countries, offerByCountry, countryQuery]);
+  }, [countries, offerByCountry, deferredCountryQuery]);
 
   const totalStock = useMemo(
     () => countryRows.reduce((s, r) => s + (r.o?.count ?? 0), 0),
     [countryRows]
   );
 
+  const visibleServices = useMemo(
+    () => filteredServices.slice(0, serviceLimit),
+    [filteredServices, serviceLimit]
+  );
+
+  const visibleCountryRows = useMemo(
+    () => (isMobile ? countryRows.slice(0, countryLimit) : countryRows),
+    [countryRows, countryLimit, isMobile]
+  );
+
+  const hasMoreServices = visibleServices.length < filteredServices.length;
+  const hasMoreCountries = isMobile && visibleCountryRows.length < countryRows.length;
+
   /* ---------- Fallback Modal ---------- */
   const fallbackModalContent =
-    fallbackModalOpen && fallbackCountry && fallbackOffer ? (
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    fallbackModalMounted && fallbackCountry && fallbackOffer ? (
+      <div
+        className={cn(
+          "fixed inset-0 z-[1000] flex items-center justify-center p-4",
+          fallbackModalClosing && "pointer-events-none"
+        )}
+      >
         <button
           type="button"
           onClick={() => {
             if (fallbackOrderingPrice !== null) return;
             setFallbackModalOpen(false);
           }}
-          className="modal-backdrop-enter absolute inset-0 bg-slate-950/50 backdrop-blur-sm dark:bg-black/70"
+          className={cn(
+            "absolute inset-0 bg-slate-950/50 backdrop-blur-sm dark:bg-black/70",
+            fallbackModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
+          )}
           aria-label="Close modal"
         />
 
-        <div className="ui-modal-surface modal-panel-enter relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
+        <div
+          className={cn(
+            "ui-modal-surface relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",
+            fallbackModalClosing ? "modal-panel-exit" : "modal-panel-enter"
+          )}
+        >
           {/* Modal Header */}
           <div
             className={cn(
@@ -770,7 +896,7 @@ export default function OrderPage() {
                 )}
 
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {filteredServices.map((s, idx) => {
+                  {visibleServices.map((s, idx) => {
                     const isSelected = selected?.code === s.code;
                     const iconUrl = `https://cdn.hero-sms.com/assets/img/service/${s.code}0.webp`;
 
@@ -779,10 +905,14 @@ export default function OrderPage() {
                         key={s.code}
                         type="button"
                         onClick={() => handleSelectService(s)}
-                        style={{ animationDelay: `${Math.min(idx * 25, 250)}ms` }}
+                        style={
+                          isMobile
+                            ? undefined
+                            : { animationDelay: `${Math.min(idx * 25, 250)}ms` }
+                        }
                         className={cn(
                           "group relative w-full cursor-pointer overflow-hidden rounded-xl border px-3.5 py-3 text-left transition-all duration-200",
-                          "animate-[fadeSlideIn_0.3s_ease_both]",
+                          !isMobile && "animate-[fadeSlideIn_0.3s_ease_both]",
                           isSelected
                             ? "border-emerald-400/50 bg-gradient-to-br from-emerald-50/80 to-teal-50/50 shadow-md shadow-emerald-500/10 ring-1 ring-emerald-400/30"
                             : "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/50 active:scale-[0.97]"
@@ -819,7 +949,11 @@ export default function OrderPage() {
                               src={iconUrl}
                               alt={s.name}
                               className="h-5 w-5"
+                              width={20}
+                              height={20}
                               loading="lazy"
+                              decoding="async"
+                              fetchPriority="low"
                               onError={(e) => {
                                 const img = e.currentTarget;
                                 img.style.display = "none";
@@ -856,6 +990,24 @@ export default function OrderPage() {
                     );
                   })}
                 </div>
+
+                {hasMoreServices && (
+                  <div className="mt-3 flex justify-center">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() =>
+                        setServiceLimit((prev) =>
+                          prev + (isMobile ? MOBILE_SERVICE_BATCH : DESKTOP_SERVICE_BATCH)
+                        )
+                      }
+                      className="!h-9 !px-4 !text-[11px] !font-semibold"
+                    >
+                      Tampilkan lebih banyak ({filteredServices.length - visibleServices.length})
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -900,7 +1052,7 @@ export default function OrderPage() {
             </div>
 
             {/* Body */}
-            <div className="p-5">
+            <div className="p-4 sm:p-5">
               {!selected ? (
                 /* ---------- EMPTY STATE ---------- */
                 <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-gradient-to-b from-slate-50/80 to-white py-16 text-center">
@@ -978,11 +1130,11 @@ export default function OrderPage() {
 
                   {/* Summary badges */}
                   <div className="mb-4 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/50">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200/50 sm:text-[11px]">
                       <Icon name="iconify:solar:globe-bold-duotone" className="h-3 w-3" />
                       {countryRows.length} negara
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200/50">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200/50 sm:text-[11px]">
                       <Icon
                         name="iconify:solar:box-minimalistic-bold-duotone"
                         className="h-3 w-3"
@@ -990,7 +1142,7 @@ export default function OrderPage() {
                       {totalStock.toLocaleString()} total stock
                     </span>
                     {countryQuery && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 ring-1 ring-violet-200/50">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[10px] font-bold text-violet-700 ring-1 ring-violet-200/50 sm:text-[11px]">
                         <Icon name="search" className="h-3 w-3" />
                         {countryRows.length} hasil
                       </span>
@@ -1024,65 +1176,76 @@ export default function OrderPage() {
                       )}
                     </div>
                   ) : (
-                    <div className="max-h-[520px] space-y-2 overflow-x-hidden overflow-y-auto pr-1 scrollbar-thin">
-                      {countryRows.map(({ c, o }, idx) => {
+                    <div className="max-h-[520px] space-y-2 overflow-x-hidden overflow-y-auto pr-0.5 sm:pr-1 scrollbar-thin">
+                      {visibleCountryRows.map(({ c, o }, idx) => {
                         const iconUrl = `https://cdn.hero-sms.com/assets/img/country/${c.id}.svg`;
                         const cheapestPrice = o!.retail_price;
                         const isOrdering = orderingId === c.id;
                         const isFallbackOrdering = fallbackOrderingPrice !== null;
                         const hasFallbackAlternatives =
-                          parseFreePriceOptions(o, Number(o?.price ?? 0)).length > 0;
+                          (fallbackOptionsByCountry.get(Number(c.id))?.length ?? 0) > 0;
 
                         return (
                           <div
                             key={c.id}
-                            style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
+                            style={
+                              isMobile
+                                ? undefined
+                                : { animationDelay: `${Math.min(idx * 35, 350)}ms` }
+                            }
                             className={cn(
-                              "animate-[fadeSlideIn_0.35s_ease_both] group rounded-xl border transition-all duration-200",
+                              "group rounded-xl border transition-all duration-200",
+                              !isMobile && "animate-[fadeSlideIn_0.35s_ease_both]",
                               isOrdering
                                 ? "border-emerald-300 bg-emerald-50/20 shadow-sm"
                                 : "border-slate-200/80 bg-white hover:border-slate-300 hover:shadow-md hover:shadow-slate-200/30"
                             )}
                           >
-                            <div className="flex items-center gap-3 px-4 py-3.5">
-                              {/* Country flag */}
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200/80 bg-white shadow-sm overflow-hidden">
-                                <img
-                                  src={iconUrl}
-                                  alt={c.eng}
-                                  className="h-6 w-6 rounded-sm object-cover"
-                                  loading="lazy"
-                                  onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                                  }}
-                                />
-                              </div>
-
-                              {/* Country info */}
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-bold text-slate-800">
-                                  {c.eng}
-                                </p>
-                                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                                  <span
-                                    className={cn(
-                                      "inline-block h-1.5 w-1.5 rounded-full",
-                                      o!.count > 100
-                                        ? "bg-emerald-400"
-                                        : o!.count > 10
-                                          ? "bg-amber-400"
-                                          : "bg-rose-400"
-                                    )}
+                            <div className="flex flex-col gap-3 px-3.5 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-3.5">
+                              <div className="flex min-w-0 flex-1 items-center gap-3">
+                                {/* Country flag */}
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
+                                  <img
+                                    src={iconUrl}
+                                    alt={c.eng}
+                                    className="h-6 w-6 rounded-sm object-cover"
+                                    width={24}
+                                    height={24}
+                                    loading="lazy"
+                                    decoding="async"
+                                    fetchPriority="low"
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                                    }}
                                   />
-                                  <span className="font-semibold text-slate-600">
-                                    {o!.count.toLocaleString()}
-                                  </span>{" "}
-                                  Pcs
+                                </div>
+
+                                {/* Country info */}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-bold text-slate-800">
+                                    {c.eng}
+                                  </p>
+                                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                                    <span
+                                      className={cn(
+                                        "inline-block h-1.5 w-1.5 rounded-full",
+                                        o!.count > 100
+                                          ? "bg-emerald-400"
+                                          : o!.count > 10
+                                            ? "bg-amber-400"
+                                            : "bg-rose-400"
+                                      )}
+                                    />
+                                    <span className="font-semibold text-slate-600">
+                                      {o!.count.toLocaleString()}
+                                    </span>{" "}
+                                    pcs
+                                  </div>
                                 </div>
                               </div>
 
-                              {/* Price */}
-                              <div className="mr-2">
+                              <div className="flex justify-between gap-2 sm:gap-3">
+                                {/* Price */}
                                 <button
                                   type="button"
                                   disabled={isOrdering}
@@ -1090,32 +1253,30 @@ export default function OrderPage() {
                                     openFallbackModalForCountry(c.id, true, "manual")
                                   }
                                   className={cn(
-                                    "group/price relative rounded-lg px-2.5 py-1.5 text-right transition-all duration-200",
+                                    "group/price relative rounded-lg border border-slate-200/80 bg-slate-50/70 px-3 py-1.5 text-left transition-all duration-200 sm:min-w-[120px] sm:flex-none sm:text-right",
                                     !isOrdering
-                                      ? "cursor-pointer hover:bg-amber-50/80 hover:shadow-sm"
-                                      : "cursor-not-allowed"
+                                      ? "cursor-pointer hover:bg-blue-50/80 hover:shadow-sm"
+                                      : "cursor-not-allowed opacity-80"
                                   )}
                                 >
-                                  <p className="text-sm font-bold text-slate-800">
+                                  <span className="text-sm font-bold flex gap-1 text-slate-800">
+                                    <Icon
+                                      name="iconify:solar:tag-bold"
+                                      className="h-3.5 w-3.5"
+                                    />
                                     {formatMoney(cheapestPrice)}
-                                  </p>
-                                  <p className="mt-0.5 flex items-center justify-end gap-1 text-[10px] text-slate-400">
-                                    Harga
-                                    {hasFallbackAlternatives && (
-                                      <Icon
-                                        name="iconify:solar:alt-arrow-down-bold"
-                                        className="h-2.5 w-2.5 text-amber-500 opacity-0 transition-opacity group-hover/price:opacity-100"
-                                      />
-                                    )}
-                                  </p>
+                                    <Icon
+                                      name="iconify:mingcute:down-fill"
+                                      className="h-3.5 w-3.5 mt-[5px] "
+                                    />
+                                  </span>
 
-                                  {/* Tooltip */}
+
+                                  {/* Tooltip desktop */}
                                   <span
                                     className={cn(
-                                      "pointer-events-none absolute right-full mr-2 top-1/2 -translate-y-1/2 z-20 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-xl transition-all duration-200",
-                                      hasFallbackAlternatives
-                                        ? "bg-slate-800"
-                                        : "bg-slate-600",
+                                      "pointer-events-none absolute right-full mr-2 top-1/2 z-20 hidden -translate-y-1/2 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-white shadow-xl transition-all duration-200 sm:block",
+                                      hasFallbackAlternatives ? "bg-slate-800" : "bg-slate-600",
                                       "opacity-0 scale-95 group-hover/price:opacity-100 group-hover/price:scale-100"
                                     )}
                                   >
@@ -1124,24 +1285,40 @@ export default function OrderPage() {
                                       : "Tidak ada harga alternatif"}
                                   </span>
                                 </button>
-                              </div>
 
-                              {/* Order button */}
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => handleOrder(c.id)}
-                                disabled={isOrdering || isFallbackOrdering}
-                                isLoading={isOrdering}
-                                leftIcon="iconify:solar:cart-large-minimalistic-bold-duotone"
-                                className="!h-9 !text-xs !font-bold"
-                              >
-                                {isOrdering ? "Ordering..." : "Order"}
-                              </Button>
+                                {/* Order button */}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => handleOrder(c.id)}
+                                  disabled={isOrdering || isFallbackOrdering}
+                                  isLoading={isOrdering}
+                                  leftIcon="iconify:solar:cart-large-minimalistic-bold-duotone"
+                                  className="!h-9 !min-w-[96px] !px-3 !text-xs !font-bold sm:!min-w-[102px]"
+                                >
+                                  {isOrdering ? "Ordering..." : "Order"}
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         );
                       })}
+
+                      {hasMoreCountries && (
+                        <div className="pt-1">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() =>
+                              setCountryLimit((prev) => prev + MOBILE_COUNTRY_BATCH)
+                            }
+                            className="w-full !h-9 !text-[11px] !font-semibold"
+                          >
+                            Tampilkan lebih banyak ({countryRows.length - visibleCountryRows.length})
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

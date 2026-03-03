@@ -710,7 +710,7 @@ export default function DepositPage() {
                       </div>
 
                       {/* Action buttons */}
-                      <div className="flex gap-2 pt-1">
+                      <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -720,7 +720,7 @@ export default function DepositPage() {
                           }
                           onClick={() => syncOne(activeInvoice.id)}
                           leftIcon="iconify:solar:refresh-bold-duotone"
-                          className="w-full"
+                          className="w-full whitespace-nowrap !text-[11px] sm:!text-xs"
                         >
                           Cek Pembayaran
                         </Button>
@@ -729,7 +729,7 @@ export default function DepositPage() {
                           <Button
                             variant="danger"
                             size="sm"
-                            className="w-full"
+                            className="w-full whitespace-nowrap !text-[11px] sm:!text-xs"
                             disabled={
                               cancelingId === activeInvoice.id || syncingId === activeInvoice.id
                             }

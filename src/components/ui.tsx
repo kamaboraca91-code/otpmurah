@@ -340,9 +340,9 @@ export const Button = forwardRef<
     "disabled:opacity-60 disabled:pointer-events-none";
 
   const sizes: Record<ButtonSize, string> = {
-    sm: "h-9 px-3 text-sm",
-    md: "h-11 px-4 text-sm",
-    lg: "h-12 px-5 text-base",
+    sm: "h-10 px-3 text-[13px] sm:h-9 sm:text-sm",
+    md: "h-11 px-4 text-[13px] sm:h-10 sm:text-sm",
+    lg: "h-12 px-5 text-[14px] sm:h-11 sm:text-base",
   };
 
   const variants: Record<ButtonVariant, string> = {
@@ -404,7 +404,7 @@ export const Input = forwardRef<
   }
 >(function Input({ className, label, hint, error, leftIcon, rightSlot, ...props }, ref) {
   const base =
-    "w-full h-10 rounded-xl bg-white border px-4 text-sm text-slate-900 " +
+    "w-full h-11 rounded-xl bg-white border px-4 text-[13px] text-slate-900 sm:h-10 sm:text-sm " +
     "placeholder:text-slate-400 outline-none transition " +
     "focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 " +
     "dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500";
@@ -418,7 +418,7 @@ export const Input = forwardRef<
       {label ? <span className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</span> : null}
       <div className={cx("relative", leftIcon ? "pl-0" : "")}>
         {leftIcon ? (
-          <span className="pointer-events-none absolute left-3 top-[18px] -translate-y-1/2 text-slate-500 dark:text-slate-400">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400">
             <Icon name={leftIcon} className="h-5 w-5" />
           </span>
         ) : null}
@@ -473,7 +473,7 @@ export function PasswordInput(
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg cursor-pointer bg-white text-slate-600 dark:bg-slate-900 dark:text-slate-300"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg cursor-pointer bg-white text-slate-600 sm:h-9 sm:w-9 dark:bg-slate-900 dark:text-slate-300"
           aria-label={show ? "Hide password" : "Show password"}
         >
           <Icon name={show ? "eyeOff" : "eye"} className="h-5 w-5" />
@@ -539,7 +539,7 @@ export function DropdownSelect({
   return (
     <div ref={rootRef} className={cx("relative", className)}>
       {leftIcon ? (
-        <span className="pointer-events-none absolute left-3 top-[19px] z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+        <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500">
           <Icon name={leftIcon} className="h-4 w-4" />
         </span>
       ) : null}
@@ -549,7 +549,7 @@ export function DropdownSelect({
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         className={cx(
-          "flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-white pr-3 text-left text-xs text-slate-900 outline-none transition",
+          "flex h-11 w-full items-center justify-between rounded-xl border border-slate-200 bg-white pr-3 text-left text-[13px] text-slate-900 outline-none transition sm:h-10 sm:text-xs",
           "dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100",
           "focus-visible:border-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500/20",
           disabled
@@ -633,7 +633,7 @@ export function Badge({
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold",
+        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold sm:text-xs",
         tones[tone],
         className
       )}
@@ -657,7 +657,7 @@ export function Card({
     <div
       className={cx(
         "ui-card rounded-2xl border border-slate-200 bg-white dark:border-slate-700/80 dark:bg-slate-900/85",
-        "p-5 sm:p-6",
+        "p-4 sm:p-6",
         className
       )}
     >
@@ -764,6 +764,29 @@ export function Alert({
 /**
  * MODAL (simple)
  */
+const MODAL_EXIT_DURATION_MS = 220;
+
+export function useModalPresence(open: boolean, exitDurationMs = MODAL_EXIT_DURATION_MS) {
+  const [mounted, setMounted] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      setMounted(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => setMounted(false), exitDurationMs);
+    return () => window.clearTimeout(timer);
+  }, [open, exitDurationMs]);
+
+  return { mounted, isClosing: mounted && !open };
+}
+
 export function Modal({
   open,
   title,
@@ -777,12 +800,14 @@ export function Modal({
   onClose: () => void;
   footer?: React.ReactNode;
 }) {
+  const { mounted, isClosing } = useModalPresence(open, MODAL_EXIT_DURATION_MS);
+
   useEffect(() => {
-    if (!open) return;
+    if (!mounted) return;
 
     const previousOverflow = document.body.style.overflow;
     const onEsc = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && open) onClose();
     };
 
     document.body.style.overflow = "hidden";
@@ -792,21 +817,29 @@ export function Modal({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onEsc);
     };
-  }, [open, onClose]);
+  }, [mounted, open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000]">
+    <div className={cx("fixed inset-0 z-[1000]", isClosing && "pointer-events-none")}>
       <button
         type="button"
-        className="modal-backdrop-enter absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] dark:bg-black/70"
+        className={cx(
+          "absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] dark:bg-black/70",
+          isClosing ? "modal-backdrop-exit" : "modal-backdrop-enter",
+        )}
         onClick={onClose}
         aria-label="Close modal"
       />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="ui-modal-surface modal-panel-enter w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40">
+        <div
+          className={cx(
+            "ui-modal-surface w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",
+            isClosing ? "modal-panel-exit" : "modal-panel-enter",
+          )}
+        >
           <div className="ui-modal-header flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
             <div className="min-w-0">
               <div className="ui-modal-title truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</div>
@@ -850,7 +883,7 @@ export function Switch({
         type="button"
         onClick={() => onCheckedChange(!checked)}
         className={cx(
-          "relative inline-flex h-7 w-12 items-center rounded-full border transition",
+          "relative inline-flex h-7 w-12 cursor-pointer items-center rounded-full border transition",
           checked
             ? "border-emerald-300 bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-900/40"
             : "border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
