@@ -44,9 +44,9 @@ export function HomeGate({
   const location = useLocation();
 
   if (isLoading) {
-    // For landing route, skip skeleton and render landing content directly.
-    if (location.pathname === "/") return <>{landing}</>;
-    return <UserLoadingScreen variant="auth" routePath={location.pathname} />;
+    return (
+      <div className="min-h-screen bg-white dark:bg-slate-950" aria-hidden="true" />
+    );
   }
 
   // If guest tries to access protected dashboard URLs directly, force login first.
