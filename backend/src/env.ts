@@ -15,6 +15,14 @@ function intFromEnv(name: string, fallback: number) {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 }
 
+function smtpFamilyFromEnv(name: string) {
+  const raw = process.env[name];
+  if (!raw) return 0;
+  const n = Number(raw);
+  if (n === 4 || n === 6) return n;
+  return 0;
+}
+
 function boolFromEnv(name: string, fallback: boolean) {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -100,6 +108,7 @@ export const env = {
   SMTP_HOST: process.env.SMTP_HOST ?? "",
   SMTP_PORT: intFromEnv("SMTP_PORT", 587),
   SMTP_SECURE: boolFromEnv("SMTP_SECURE", false),
+  SMTP_FAMILY: smtpFamilyFromEnv("SMTP_FAMILY"),
   SMTP_USER: process.env.SMTP_USER ?? "",
   SMTP_PASS: process.env.SMTP_PASS ?? "",
   SMTP_FROM_EMAIL: process.env.SMTP_FROM_EMAIL ?? "",

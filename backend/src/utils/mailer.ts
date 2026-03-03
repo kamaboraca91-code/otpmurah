@@ -39,6 +39,23 @@ function fromAddress() {
   return `"${env.SMTP_FROM_NAME}" <${fromEmail}>`;
 }
 
+function normalizeSmtpError(err: any) {
+  const code = String(err?.code ?? "");
+  if (code === "ENETUNREACH" || code === "EHOSTUNREACH") {
+    return new Error(
+      "Server tidak bisa menjangkau SMTP host. Gunakan IPv4 (set SMTP_FAMILY=4) lalu deploy ulang backend.",
+    );
+  }
+  if (code === "ECONNREFUSED" || code === "ETIMEDOUT") {
+    return new Error("Koneksi ke SMTP gagal/timeout. Cek SMTP_HOST, SMTP_PORT, dan firewall provider.");
+  }
+  if (code === "EAUTH") {
+    return new Error("Autentikasi SMTP gagal. Cek SMTP_USER dan SMTP_PASS (app password).");
+  }
+  if (err instanceof Error) return err;
+  return new Error("Gagal mengirim email via SMTP.");
+}
+
 async function sendMailWithTimeout(
   transporter: nodemailer.Transporter,
   options: nodemailer.SendMailOptions,
@@ -52,6 +69,8 @@ async function sendMailWithTimeout(
 
   try {
     await Promise.race([transporter.sendMail(options), timeoutPromise]);
+  } catch (err) {
+    throw normalizeSmtpError(err);
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
