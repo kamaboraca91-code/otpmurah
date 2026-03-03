@@ -627,7 +627,6 @@ export default function OrderPage() {
     fallbackDrawerStartTsRef.current = performance.now();
     fallbackDrawerMovedRef.current = false;
     setFallbackDrawerDragging(true);
-    setFallbackDrawerOffset(fallbackDrawerStartOffsetRef.current);
     event.currentTarget?.setPointerCapture?.(event.pointerId);
   }
 
@@ -640,11 +639,8 @@ export default function OrderPage() {
     const currentY = Number(event.clientY ?? startY);
     const delta = currentY - startY;
 
-    let nextOffset = startOffset + delta;
-    if (nextOffset < 0) {
-      // Sedikit tahanan saat ditarik ke atas biar natural.
-      nextOffset = nextOffset * 0.24;
-    }
+    // Offset > 0: drawer mengecil. Offset 0: ukuran normal.
+    const nextOffset = Math.max(0, startOffset + delta);
 
     if (Math.abs(delta) > 4) fallbackDrawerMovedRef.current = true;
     if (Math.abs(delta) > 6) event.preventDefault();
@@ -879,16 +875,19 @@ export default function OrderPage() {
       }
       : undefined;
 
+  const fallbackDrawerShrinkPx = Math.max(0, Number(fallbackDrawerOffset ?? 0));
+  const fallbackDrawerMaxShrinkPx =
+    typeof window !== "undefined" ? Math.floor(window.innerHeight * 0.7) : 560;
+  const fallbackDrawerClampedShrinkPx = Math.min(fallbackDrawerShrinkPx, fallbackDrawerMaxShrinkPx);
+
   const fallbackDrawerStyle =
     isMobile && fallbackDrawerOffset !== null
       ? {
-        transform: `translate3d(0, ${Math.min(
-          Math.max(fallbackDrawerOffset, -36),
-          window.innerHeight
-        )}px, 0)`,
+        height: `calc(86dvh - ${fallbackDrawerClampedShrinkPx}px)`,
+        maxHeight: `calc(86dvh - ${fallbackDrawerClampedShrinkPx}px)`,
         transition: fallbackDrawerDragging
           ? "none"
-          : "transform 320ms cubic-bezier(0.32, 0.72, 0, 1)",
+          : "height 320ms cubic-bezier(0.32, 0.72, 0, 1), max-height 320ms cubic-bezier(0.32, 0.72, 0, 1)",
       }
       : undefined;
 
