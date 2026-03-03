@@ -162,55 +162,79 @@ function Header({ branding }: { branding: WebsiteBranding }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 1024) setMobileOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
+
   return (
     <>
       <header
         className={cx(
-          "fixed inset-x-0 top-0 z-50 transition-all duration-500 ",
+          "fixed inset-x-0 top-0 z-[60] border-b transition-all duration-300",
           isScrolled
-            ? "backdrop-blur-xl supports-[backdrop-filter]:bg-white/80 bg-white/90 border-b border-slate-200/60 "
-            : "bg-transparent border-b border-transparent"
+            ? "border-slate-200/70 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/80 dark:border-slate-800/80 dark:bg-slate-950/80"
+            : "border-transparent bg-gradient-to-b from-white/95 via-white/90 to-white/70 backdrop-blur-xl dark:from-slate-950/95 dark:via-slate-950/90 dark:to-slate-950/75"
         )}
       >
         <Container>
           <div className="flex h-16 items-center justify-between">
-            {/* Logo */}
-            <a href="#top" className="group flex items-center gap-3">
+            <a href="#top" className="group flex min-w-0 items-center gap-3">
               {logoUrl ? (
-                <span className="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
                   <img src={logoUrl} alt={siteName} className="h-full w-full object-cover" loading="lazy" />
                 </span>
               ) : (
                 <span
                   className={cx(
-                    "inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-all duration-300",
+                    "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border transition-all duration-300",
                     isScrolled
-                      ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-700 shadow-sm"
-                      : "border-white/20 bg-white/10 text-emerald-700 group-hover:bg-white/20"
+                      ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 text-emerald-700 shadow-sm dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : "border-slate-200/80 bg-white/80 text-emerald-700 group-hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:text-emerald-300 dark:group-hover:bg-slate-900"
                   )}
                 >
                   <Icon name="bolt" className="h-5 w-5" />
                 </span>
               )}
-              <div className="leading-tight">
-                <div className="text-sm font-bold text-slate-900">{siteName}</div>
-                <div className="max-w-[220px] truncate text-[10px] font-medium text-slate-500">
+              <div className="min-w-0 leading-tight">
+                <div className="truncate text-[15px] font-extrabold tracking-wide text-slate-900 dark:text-slate-100">
+                  {siteName}
+                </div>
+                <div className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
                   {siteDescription}
                 </div>
               </div>
             </a>
 
-            {/* Desktop nav */}
-            <nav className="hidden items-center gap-1 lg:flex">
+            <nav className="hidden items-center gap-1.5 lg:flex">
               {navItems.map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
                   className={cx(
-                    "relative rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200",
+                    "rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200",
                     isScrolled
-                      ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                      : "text-slate-600 hover:bg-white/20 hover:text-slate-900"
+                      ? "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                      : "text-slate-700 hover:bg-white hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                   )}
                 >
                   {item.label}
@@ -218,14 +242,12 @@ function Header({ branding }: { branding: WebsiteBranding }) {
               ))}
             </nav>
 
-            {/* Desktop CTA */}
             <div className="hidden items-center gap-2 lg:flex">
               <Link to="/login">
                 <Button leftIcon="iconify:solar:login-3-bold-duotone" variant="secondary" size="sm">
                   Log in
                 </Button>
               </Link>
-              
               <Link to="/register">
                 <Button leftIcon="arrowRight" size="sm">
                   Receive SMS
@@ -233,71 +255,85 @@ function Header({ branding }: { branding: WebsiteBranding }) {
               </Link>
             </div>
 
-            {/* Mobile */}
             <div className="flex items-center gap-2 lg:hidden">
-              <Button variant="secondary" size="sm" onClick={() => setMobileOpen((v) => !v)}>
-                {mobileOpen ? (
-                  <Icon name="x" className="h-4 w-4" />
-                ) : (
-                  <Icon name="iconify:solar:hamburger-menu-bold-duotone" className="h-4 w-4" />
+              <button
+                type="button"
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                onClick={() => setMobileOpen((v) => !v)}
+                className={cx(
+                  "inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-all duration-200",
+                  "border-slate-200/90 bg-white/90 text-slate-700 hover:bg-white",
+                  "dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:bg-slate-900"
                 )}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() =>
-                  document.getElementById("product")?.scrollIntoView({ behavior: "smooth" })
-                }
               >
-                Receive
-              </Button>
+                {mobileOpen ? (
+                  <Icon name="iconify:material-symbols:close-rounded" className="h-5 w-5" />
+                ) : (
+                  <Icon name="iconify:material-symbols:menu-rounded" className="h-5 w-5" />
+                )}
+              </button>
             </div>
           </div>
+        </Container>
+      </header>
 
-          {/* Mobile dropdown */}
-          <div
-            className={cx(
-              "origin-top overflow-hidden transition-[max-height,opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] lg:hidden",
-              mobileOpen
-                ? "max-h-[460px] translate-y-0 scale-100 opacity-100 pb-4"
-                : "pointer-events-none max-h-0 -translate-y-2 scale-[0.98] opacity-0"
-            )}
-          >
-            <div className="-mx-4 mt-2 sm:mx-0 sm:mt-0">
-              <div className="rounded-none border-y border-slate-200/80 bg-white/95 p-3 shadow-lg shadow-slate-900/5 backdrop-blur-xl sm:rounded-2xl sm:border sm:shadow-xl">
+      <div
+        className={cx(
+          "fixed inset-x-0 top-16 z-50 transform-gpu transition-[opacity,transform] duration-300 ease-out lg:hidden",
+          mobileOpen
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-3 opacity-0"
+        )}
+      >
+        <div className="border-b border-slate-200/80 bg-white/95 shadow-[0_18px_40px_-24px_rgba(15,23,42,0.55)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95">
+          <Container className="py-3">
+            <nav className="space-y-1">
               {navItems.map((item) => (
                 <a
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  className="flex items-center justify-between rounded-xl px-4 py-3 text-[15px] font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-800/70"
                 >
                   {item.label}
-                  <Icon name="arrowRight" className="h-4 w-4 text-slate-400" />
+                  <Icon name="arrowRight" className="h-4 w-4 text-slate-400 dark:text-slate-500" />
                 </a>
               ))}
-              <div className="my-2 border-t border-slate-100" />
-              <div className="grid gap-2 sm:grid-cols-2">
+            </nav>
+
+            <div className="my-3 border-t border-slate-100 dark:border-slate-800" />
+
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" className="w-full">
                 <Link to="/login" onClick={() => setMobileOpen(false)}>
-                  <Button variant="secondary" className="w-full">
-                    Log in
-                  </Button>
+                  Log in
                 </Link>
-                <Button
-                  rightIcon="arrowRight"
-                  className="w-full"
-                  onClick={() => {
-                    setMobileOpen(false);
-                    document.getElementById("product")?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
-                  Receive SMS
-                </Button>
-              </div>
+              </Button>
+              <Button
+                size="sm"
+                rightIcon="arrowRight"
+                className="w-full"
+                onClick={() => {
+                  setMobileOpen(false);
+                  document.getElementById("product")?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                Receive SMS
+              </Button>
             </div>
-            </div>
-          </div>
-        </Container>
-      </header>
+          </Container>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        aria-label="Close menu"
+        onClick={() => setMobileOpen(false)}
+        className={cx(
+          "fixed inset-0 top-16 z-40 bg-slate-950/35 backdrop-blur-[2px] transition-opacity duration-300 lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
+      />
 
       <div className="h-16" />
     </>
@@ -346,14 +382,15 @@ function SectionTitle({
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 function Hero() {
   return (
-    <div id="top" className="relative overflow-hidden bg-white">
+    <div id="top" className="relative overflow-hidden bg-white dark:bg-slate-950">
       {/* Decorative background */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 left-1/2 h-[500px] w-[1200px] -translate-x-1/2 rounded-full bg-gradient-to-br from-emerald-100/70 via-teal-50/50 to-cyan-100/30 blur-3xl" />
-        <div className="absolute -bottom-40 left-1/4 h-[400px] w-[800px] -translate-x-1/2 rounded-full bg-slate-100/60 blur-3xl" />
-        <div className="absolute top-1/4 right-0 h-[300px] w-[400px] rounded-full bg-emerald-50/40 blur-3xl" />
+        <div className="absolute -top-32 left-1/2 h-[500px] w-[1200px] -translate-x-1/2 rounded-full bg-gradient-to-br from-emerald-100/70 via-teal-50/50 to-cyan-100/30 blur-3xl dark:from-cyan-500/12 dark:via-emerald-500/8 dark:to-indigo-500/10" />
+        <div className="absolute -bottom-40 left-1/4 h-[400px] w-[800px] -translate-x-1/2 rounded-full bg-slate-100/60 blur-3xl dark:bg-slate-900/80" />
+        <div className="absolute top-1/4 right-0 h-[300px] w-[400px] rounded-full bg-emerald-50/40 blur-3xl dark:bg-emerald-500/10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/80 dark:to-slate-950/90" />
         <div
-          className="absolute inset-0 opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.04] dark:opacity-[0.08]"
           style={{
             backgroundImage:
               "linear-gradient(to right, #0f172a 1px, transparent 1px), linear-gradient(to bottom, #0f172a 1px, transparent 1px)",
@@ -400,14 +437,14 @@ function Hero() {
             </FadeIn>
 
             <FadeIn delay={300}>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="mt-8 flex gap-3 sm:flex-row sm:items-center">
                 <Link to="/register">
-                <Button size="sm">
-                   Get Started â€” Receive SMS
-                </Button>
-              </Link>
+                  <Button size="sm">
+                    Get Started
+                  </Button>
+                </Link>
                 <Button
-                size="sm"
+                  size="sm"
                   variant="secondary"
                 >
                   How it works
@@ -504,7 +541,7 @@ function Hero() {
       </Container>
 
       {/* Section divider */}
-      <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-slate-800" />
     </div>
   );
 }

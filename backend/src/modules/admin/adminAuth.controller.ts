@@ -144,7 +144,11 @@ export async function logout(req: Request, res: Response) {
 
 /** ✅ restore admin session on refresh page */
 export async function me(req: Request, res: Response) {
-  const token = req.cookies?.[ADMIN_ACCESS_COOKIE_NAME];
+  const header = req.get("authorization");
+  const bearer = header?.startsWith("Bearer ")
+    ? header.slice("Bearer ".length).trim()
+    : "";
+  const token = bearer || req.cookies?.[ADMIN_ACCESS_COOKIE_NAME];
   if (!token) return res.json({ admin: null });
 
   try {

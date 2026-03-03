@@ -2,6 +2,7 @@ import React from "react";
 import {
   ADMIN_AUTH_EXPIRED_EVENT,
   adminFetch,
+  setAdminBearerToken,
 } from "../lib/adminApi";
 
 type Admin = { id: string; email: string; name?: string };
@@ -27,6 +28,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       setAdmin(data?.admin ?? null);
     } catch {
       setAdmin(null);
+      setAdminBearerToken(null);
     }
   }, []);
 
@@ -42,6 +44,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     const onExpired = () => {
       const hadActiveAdmin = Boolean(admin);
       setAdmin(null);
+      setAdminBearerToken(null);
 
       if (!hadActiveAdmin || typeof window === "undefined") return;
       if (window.location.pathname !== "/admin/login") {
@@ -70,6 +73,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json();
     setAdmin(data?.admin ?? null);
+    setAdminBearerToken(data?.accessToken ?? null);
   }
 
   async function adminLogout() {
@@ -77,6 +81,7 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
       await adminFetch("/admin/auth/logout", { method: "POST" });
     } finally {
       setAdmin(null);
+      setAdminBearerToken(null);
     }
   }
 

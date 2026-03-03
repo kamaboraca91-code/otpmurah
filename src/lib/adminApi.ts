@@ -2,6 +2,7 @@ import { getCookie } from "./cookies";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
 export const ADMIN_AUTH_EXPIRED_EVENT = "admin-auth-expired";
+let adminBearerToken: string | null = null;
 
 async function safeJson(res: Response) {
   try {
@@ -9,6 +10,10 @@ async function safeJson(res: Response) {
   } catch {
     return {};
   }
+}
+
+export function setAdminBearerToken(token: string | null) {
+  adminBearerToken = token && token.trim() ? token.trim() : null;
 }
 
 export async function adminFetch(path: string, options: RequestInit = {}) {
@@ -23,6 +28,10 @@ export async function adminFetch(path: string, options: RequestInit = {}) {
   if (path === "/admin/auth/refresh") {
     const csrf = getCookie("adm_csrf");
     if (csrf) headers.set("x-csrf-token", csrf);
+  }
+
+  if (adminBearerToken && !headers.has("authorization")) {
+    headers.set("authorization", `Bearer ${adminBearerToken}`);
   }
 
   const res = await fetch(`${API_BASE}${path}`, {

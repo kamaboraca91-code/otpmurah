@@ -3,6 +3,7 @@ import { getCookie } from "./cookies";
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:4000";
 export const USER_AUTH_EXPIRED_EVENT = "user-auth-expired";
 const DEFAULT_REQUEST_TIMEOUT_MS = 25000;
+let userBearerToken: string | null = null;
 
 type Json = Record<string, any>;
 type ApiFetchOptions = RequestInit & {
@@ -15,6 +16,10 @@ async function safeJson(res: Response): Promise<Json> {
   } catch {
     return {};
   }
+}
+
+export function setUserBearerToken(token: string | null) {
+  userBearerToken = token && token.trim() ? token.trim() : null;
 }
 
 export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
@@ -32,6 +37,11 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}) {
   if (path === "/auth/refresh") {
     const csrf = getCookie("csrfToken");
     if (csrf) headers.set("x-csrf-token", csrf);
+  }
+
+  // Fallback for mobile browsers that block cross-site cookies.
+  if (userBearerToken && !headers.has("authorization")) {
+    headers.set("authorization", `Bearer ${userBearerToken}`);
   }
 
   const controller = new AbortController();

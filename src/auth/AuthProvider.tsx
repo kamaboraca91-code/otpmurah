@@ -2,6 +2,7 @@ import React, { createContext, useEffect, useMemo, useState } from "react";
 import {
   USER_AUTH_EXPIRED_EVENT,
   apiFetch,
+  setUserBearerToken,
 } from "../lib/api";
 
 type User = { id: string; email: string; name?: string | null; balance?: number };
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await apiFetch("/auth/refresh", { method: "POST" });
     setUser(data.user);
     setAccessToken(data.accessToken);
+    setUserBearerToken(data.accessToken ?? null);
   }
 
   async function login(email: string, password: string, captchaToken?: string) {
@@ -45,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     setUser(data.user);
     setAccessToken(data.accessToken);
+    setUserBearerToken(data.accessToken ?? null);
   }
 
   async function register(
@@ -67,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setUser(null);
       setAccessToken(null);
+      setUserBearerToken(null);
     }
   }
 
@@ -84,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         setUser(null);
         setAccessToken(null);
+        setUserBearerToken(null);
       } finally {
         setIsLoading(false);
       }
@@ -95,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const hadActiveUser = Boolean(user);
       setUser(null);
       setAccessToken(null);
+      setUserBearerToken(null);
 
       if (!hadActiveUser || typeof window === "undefined") return;
       if (window.location.pathname !== "/login") {
