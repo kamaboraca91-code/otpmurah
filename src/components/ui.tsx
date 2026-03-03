@@ -335,7 +335,7 @@ export const Button = forwardRef<
   ref
 ) {
   const base =
-    "inline-flex items-center justify-center gap-1 cursor-pointer rounded-xl font-semibold " +
+    "inline-flex items-center justify-center gap-2 cursor-pointer rounded-xl font-semibold " +
     "transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 " +
     "disabled:opacity-60 disabled:pointer-events-none";
 
@@ -354,15 +354,16 @@ export const Button = forwardRef<
       "hover:bg-slate-50 active:bg-slate-100 " +
       "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800 dark:active:bg-slate-800/90",
     ghost:
-      "bg-transparent text-slate-900 border border-transparent " +
-      "hover:bg-slate-100 active:bg-slate-200 " +
-      "dark:text-slate-100 dark:hover:bg-slate-800 dark:active:bg-slate-700",
+      "bg-slate-50 text-slate-900 border border-slate-200 " +
+      "hover:bg-slate-50 active:bg-slate-100 " +
+      "dark:bg-slate-900 dark:text-slate-100 dark:border-slate-700 dark:hover:bg-slate-800 dark:active:bg-slate-800/90",
     danger:
       "bg-rose-600 text-white border border-rose-600 " +
       "hover:bg-rose-700 hover:border-rose-700",
   };
 
   const iconCls = "w-4 h-4";
+  const iconClsRg = "w-4 h-4 text-emerald-600 ";
   const loadingSpinnerCls =
     variant === "primary" || variant === "danger"
       ? "border-white/60 border-t-white"
@@ -385,7 +386,7 @@ export const Button = forwardRef<
         <Icon name={leftIcon} className={iconCls} />
       ) : null}
       <span>{children}</span>
-      {rightIcon && !isLoading ? <Icon name={rightIcon} className={iconCls} /> : null}
+      {rightIcon && !isLoading ? <Icon name={rightIcon} className={iconClsRg} /> : null}
     </button>
   );
 });

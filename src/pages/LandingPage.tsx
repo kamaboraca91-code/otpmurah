@@ -2,6 +2,7 @@
 import { Badge, Button, Icon, Input } from "../components/ui";
 import { Icon as IconifyIcon } from "@iconify/react";
 import { Link } from "react-router-dom";
+import ThemeToggleButton from "../components/ThemeToggleButton";
 import {
   getDefaultWebsiteBranding,
   getWebsiteBranding,
@@ -243,6 +244,8 @@ function Header({ branding }: { branding: WebsiteBranding }) {
             </nav>
 
             <div className="hidden items-center gap-2 lg:flex">
+              <ThemeToggleButton showLabel />
+
               <Link to="/login">
                 <Button leftIcon="iconify:solar:login-3-bold-duotone" variant="secondary" size="sm">
                   Log in
@@ -256,6 +259,8 @@ function Header({ branding }: { branding: WebsiteBranding }) {
             </div>
 
             <div className="flex items-center gap-2 lg:hidden">
+              <ThemeToggleButton />
+
               <button
                 type="button"
                 aria-label={mobileOpen ? "Close menu" : "Open menu"}

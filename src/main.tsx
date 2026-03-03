@@ -5,7 +5,6 @@ import { Toaster } from "sileo";
 import { AuthProvider } from "./auth/AuthProvider";
 import { AdminAuthProvider } from "./auth/AdminAuthProvider";
 import { SeoManager } from "./components/seo/SeoManager";
-import ThemeToggleFloating from "./components/ThemeToggleFloating";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import App from "./App";
@@ -33,7 +32,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             }}
           />
           <App />
-          <ThemeToggleFloating />
         </AdminAuthProvider>
       </AuthProvider>
     </ThemeProvider>

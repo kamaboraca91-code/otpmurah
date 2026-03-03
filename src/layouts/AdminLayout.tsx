@@ -13,6 +13,7 @@ import {
   Icon,
   Input,
 } from "../components/ui";
+import ThemeToggleButton from "../components/ThemeToggleButton";
 
 function cx(...c: Array<string | false | null | undefined>) {
   return c.filter(Boolean).join(" ");
@@ -402,6 +403,8 @@ export default function AdminLayout() {
             <PageTitle />
 
             <div className="ml-auto flex items-center gap-2.5">
+              <ThemeToggleButton />
+
               {/* Back to user */}
               <button
                 onClick={() => nav("/")}

@@ -4,6 +4,7 @@ import { Button, Icon } from "../components/ui";
 import { useAuth } from "../auth/useAuth";
 import { UserRouteTransition } from "../components/pageTransition";
 import { API_BASE, apiFetch } from "../lib/api";
+import ThemeToggleButton from "../components/ThemeToggleButton";
 
 type NavItem = {
   to: string;
@@ -13,6 +14,8 @@ type NavItem = {
   badge?: string;
   group: "main" | "system";
 };
+
+type BottomNavItem = Pick<NavItem, "to" | "label" | "icon" | "end">;
 
 type WebsiteBranding = {
   siteName: string;
@@ -101,6 +104,16 @@ export default function DashboardLayout() {
 
   const mainItems = items.filter((i) => i.group === "main");
   const systemItems = items.filter((i) => i.group === "system");
+  const mobileBottomItems: BottomNavItem[] = useMemo(
+    () => [
+      { to: "/orders", label: "Order", icon: "iconify:solar:bill-list-bold-duotone" },
+      { to: "/numbers", label: "Pesanan", icon: "iconify:solar:sim-cards-bold-duotone" },
+      { to: "/", label: "Home", icon: "iconify:solar:home-2-bold-duotone", end: true },
+      { to: "/history", label: "Riwayat", icon: "iconify:solar:clock-circle-bold-duotone" },
+      { to: "/settings", label: "Akun", icon: "iconify:solar:user-bold-duotone" },
+    ],
+    []
+  );
 
   const onLogout = useCallback(async () => {
     setProfileOpen(false);
@@ -119,7 +132,7 @@ export default function DashboardLayout() {
       currency: "IDR",
       maximumFractionDigits: 0,
     }).format(safe);
-    return `Saldo: ${text}`;
+    return `${text}`;
   }, [user?.balance]);
 
   return (
@@ -210,10 +223,13 @@ export default function DashboardLayout() {
 
                 <div className="flex-1" />
 
+                <ThemeToggleButton size="md" className="shrink-0" />
+
                 <Button
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
-                  leftIcon="iconify:solar:add-square-bold-duotone"
+                  leftIcon="iconify:streamline-plump:wallet"
+                  rightIcon="iconify:octicon:feed-plus-16"
                   onClick={() => nav("/deposit")}
                   className="hidden sm:inline-flex"
                 >
@@ -307,7 +323,7 @@ export default function DashboardLayout() {
             {/* ═══ Scrollable content + footer ═══ */}
             <div className="flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
 
-              <div className="flex min-h-full flex-col">
+              <div className="flex min-h-full flex-col pb-24 md:pb-0">
                 {/* Page content */}
                 <main className="mx-auto w-full min-w-0 flex-1 px-4 py-5 sm:px-6">
                 
@@ -323,7 +339,7 @@ export default function DashboardLayout() {
                 </main>
 
                 {/* Footer — always at the very bottom */}
-                <footer className="mt-auto shrink-0 border-t border-slate-200/70 bg-white/60 md:backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/70">
+                <footer className="mt-auto hidden shrink-0 border-t border-slate-200/70 bg-white/60 md:block md:backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/70">
                   <div className="mx-auto flex flex-col gap-2 px-4 py-4 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <span>
                       © {new Date().getFullYear()} {websiteBranding?.siteName || "OTP Seller"} • Built with security
@@ -341,6 +357,8 @@ export default function DashboardLayout() {
               </div>
             </div>
           </div>
+
+          <MobileBottomNav items={mobileBottomItems} />
         </div>
       </div>
     </>
@@ -379,6 +397,65 @@ function DropdownItem({
   );
 }
 
+function MobileBottomNav({ items }: { items: BottomNavItem[] }) {
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 md:hidden">
+      <div
+        className="border-t border-slate-200/50 bg-white/70 backdrop-blur-3xl dark:border-white/[0.04] dark:bg-slate-950/70"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        <div className="mx-auto grid max-w-[500px] grid-cols-5 px-4 pt-1">
+          {items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                cx(
+                  "group flex flex-col items-center gap-0.5 py-2 transition-all duration-200",
+                  isActive
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-slate-400 active:scale-90 active:opacity-60 dark:text-slate-500"
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {/* Clean icon — no background box */}
+                  <span className="relative flex h-7 items-center justify-center">
+                    <Icon
+                      name={item.icon as any}
+                      className={cx(
+                        "h-[22px] w-[22px] transition-all duration-200",
+                        isActive && "scale-105"
+                      )}
+                    />
+                    {/* Soft glow for active */}
+                    {isActive && (
+                      <span className="absolute inset-0 -z-10 scale-150 rounded-full bg-emerald-400/15 blur-lg dark:bg-emerald-400/10" />
+                    )}
+                  </span>
+
+                  {/* Minimal label */}
+                  <span
+                    className={cx(
+                      "text-[10px] font-semibold tracking-wide",
+                      isActive
+                        ? "opacity-100"
+                        : "opacity-60 group-hover:opacity-80"
+                    )}
+                  >
+                    {item.label}
+                  </span>
+                </>
+              )}
+            </NavLink>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
 /* ══════════════════════════════════════════════
    SIDEBAR SUBCOMPONENTS
    ══════════════════════════════════════════════ */

@@ -218,6 +218,15 @@ export default function OrderPage() {
     useState<FallbackModalTrigger>("manual");
   const { mounted: fallbackModalMounted, isClosing: fallbackModalClosing } =
     useModalPresence(fallbackModalOpen);
+  const [fallbackDrawerOffset, setFallbackDrawerOffset] = useState<number | null>(null);
+  const [fallbackDrawerDragging, setFallbackDrawerDragging] = useState(false);
+  const fallbackDrawerPointerIdRef = useRef<number | null>(null);
+  const fallbackDrawerStartYRef = useRef<number | null>(null);
+  const fallbackDrawerStartOffsetRef = useRef(0);
+  const fallbackDrawerStartTsRef = useRef(0);
+  const fallbackDrawerMovedRef = useRef(false);
+  const fallbackDrawerIgnoreBackdropClickRef = useRef(false);
+  const fallbackDrawerSnapTimerRef = useRef<number | null>(null);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined"
       ? window.matchMedia(MOBILE_BREAKPOINT).matches
@@ -590,18 +599,309 @@ export default function OrderPage() {
   const hasMoreServices = visibleServices.length < filteredServices.length;
   const hasMoreCountries = isMobile && visibleCountryRows.length < countryRows.length;
 
-  /* ---------- Fallback Modal ---------- */
+  function clearFallbackDrawerSnapTimer() {
+    if (fallbackDrawerSnapTimerRef.current === null || typeof window === "undefined") return;
+    window.clearTimeout(fallbackDrawerSnapTimerRef.current);
+    fallbackDrawerSnapTimerRef.current = null;
+  }
+
+  function resetFallbackDrawerDragState() {
+    setFallbackDrawerDragging(false);
+    setFallbackDrawerOffset(null);
+    fallbackDrawerPointerIdRef.current = null;
+    fallbackDrawerStartYRef.current = null;
+    fallbackDrawerStartOffsetRef.current = 0;
+    fallbackDrawerStartTsRef.current = 0;
+    fallbackDrawerMovedRef.current = false;
+    fallbackDrawerIgnoreBackdropClickRef.current = false;
+  }
+
+  function handleFallbackDrawerPointerDown(event: any) {
+    if (!isMobile || fallbackOrderingPrice !== null || fallbackModalClosing) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    clearFallbackDrawerSnapTimer();
+    fallbackDrawerPointerIdRef.current = event.pointerId;
+    fallbackDrawerStartYRef.current = Number(event.clientY ?? 0);
+    fallbackDrawerStartOffsetRef.current = Number(fallbackDrawerOffset ?? 0);
+    fallbackDrawerStartTsRef.current = performance.now();
+    fallbackDrawerMovedRef.current = false;
+    setFallbackDrawerDragging(true);
+    setFallbackDrawerOffset(fallbackDrawerStartOffsetRef.current);
+    event.currentTarget?.setPointerCapture?.(event.pointerId);
+  }
+
+  function handleFallbackDrawerPointerMove(event: any) {
+    if (!fallbackDrawerDragging) return;
+    if (fallbackDrawerPointerIdRef.current !== event.pointerId) return;
+
+    const startY = fallbackDrawerStartYRef.current ?? Number(event.clientY ?? 0);
+    const startOffset = fallbackDrawerStartOffsetRef.current;
+    const currentY = Number(event.clientY ?? startY);
+    const delta = currentY - startY;
+
+    let nextOffset = startOffset + delta;
+    if (nextOffset < 0) {
+      // Sedikit tahanan saat ditarik ke atas biar natural.
+      nextOffset = nextOffset * 0.24;
+    }
+
+    if (Math.abs(delta) > 4) fallbackDrawerMovedRef.current = true;
+    if (Math.abs(delta) > 6) event.preventDefault();
+    setFallbackDrawerOffset(nextOffset);
+  }
+
+  function finishFallbackDrawerPointerInteraction(event: any) {
+    if (!fallbackDrawerDragging) return;
+    if (fallbackDrawerPointerIdRef.current !== event.pointerId) return;
+
+    event.currentTarget?.releasePointerCapture?.(event.pointerId);
+
+    const startY = fallbackDrawerStartYRef.current ?? Number(event.clientY ?? 0);
+    const endY = Number(event.clientY ?? startY);
+    const delta = endY - startY;
+    const elapsedMs = Math.max(16, performance.now() - fallbackDrawerStartTsRef.current);
+    const velocity = delta / elapsedMs;
+    const currentOffset = Number(fallbackDrawerOffset ?? 0);
+    const closeThresholdPx = Math.min(220, Math.max(120, window.innerHeight * 0.22));
+    const shouldCloseByDistance = currentOffset > closeThresholdPx;
+    const shouldCloseByVelocity = velocity > 1.15;
+    const shouldClose = shouldCloseByDistance || shouldCloseByVelocity;
+    const moved = fallbackDrawerMovedRef.current;
+
+    fallbackDrawerIgnoreBackdropClickRef.current = moved;
+
+    setFallbackDrawerDragging(false);
+    fallbackDrawerPointerIdRef.current = null;
+    fallbackDrawerStartYRef.current = null;
+    fallbackDrawerStartOffsetRef.current = 0;
+    fallbackDrawerStartTsRef.current = 0;
+    fallbackDrawerMovedRef.current = false;
+
+    if (shouldClose && fallbackOrderingPrice === null) {
+      setFallbackDrawerOffset(null);
+      setFallbackModalOpen(false);
+      return;
+    }
+
+    setFallbackDrawerOffset(0);
+    if (typeof window === "undefined") return;
+    fallbackDrawerSnapTimerRef.current = window.setTimeout(() => {
+      setFallbackDrawerOffset(null);
+      fallbackDrawerSnapTimerRef.current = null;
+    }, 280);
+  }
+
+  useEffect(() => {
+    if (!fallbackModalOpen || !isMobile) {
+      clearFallbackDrawerSnapTimer();
+      resetFallbackDrawerDragState();
+    }
+    return () => {
+      clearFallbackDrawerSnapTimer();
+    };
+  }, [fallbackModalOpen, isMobile]);
+
+  /* ---------- Fallback Modal / Mobile Drawer ---------- */
+  const fallbackModalTitle =
+    fallbackModalTrigger === "stock-out" ? "Stok harga utama sedang habis" : "Pilih harga lain";
+  const isFallbackStockOut = fallbackModalTrigger === "stock-out";
+
+  const fallbackModalInnerContent =
+    fallbackCountry && fallbackOffer ? (
+      <>
+        <div
+          className={cn(
+            "ui-modal-header border-b border-slate-100/80 dark:border-slate-700",
+            isMobile ? "cursor-grab touch-none select-none px-4 pb-3 pt-2.5 active:cursor-grabbing" : "px-5 py-4",
+            isFallbackStockOut
+              ? "bg-gradient-to-r from-amber-50/80 to-orange-50/50 dark:from-amber-950/40 dark:to-orange-950/30"
+              : "bg-gradient-to-r from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30"
+          )}
+          onPointerDown={isMobile ? handleFallbackDrawerPointerDown : undefined}
+          onPointerMove={isMobile ? handleFallbackDrawerPointerMove : undefined}
+          onPointerUp={isMobile ? finishFallbackDrawerPointerInteraction : undefined}
+          onPointerCancel={isMobile ? finishFallbackDrawerPointerInteraction : undefined}
+        >
+          {isMobile ? (
+            <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300/80 dark:bg-slate-600/80" />
+          ) : null}
+          <div className="flex items-start gap-3">
+            <div
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg",
+                isFallbackStockOut
+                  ? "bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/25"
+                  : "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/25"
+              )}
+            >
+              <Icon
+                name={isFallbackStockOut ? "warning" : "info"}
+                className="h-5 w-5 text-white"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {fallbackModalTitle}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">
+                Opsi harga untuk{" "}
+                <span className="font-bold text-slate-700 dark:text-slate-100">{selected?.name}</span> di{" "}
+                <span className="font-bold text-slate-700 dark:text-slate-100">{fallbackCountry.eng}</span>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "overflow-y-auto scrollbar-thin dark:text-slate-200",
+            isMobile ? "max-h-[62dvh] px-4 pb-4 pt-3" : "max-h-[420px] p-5"
+          )}
+        >
+          <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200/60 bg-slate-50/80 px-2 py-2.5 dark:border-slate-700 dark:bg-slate-800/70">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700/70">
+              <Icon name="iconify:solar:tag-price-bold-duotone" className="h-4 w-4 text-slate-500 dark:text-slate-300" />
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-slate-400">Harga Termurah saat ini</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                {formatMoney(fallbackOffer.retail_price)}
+              </p>
+            </div>
+          </div>
+
+          {fallbackOptions.length === 0 ? (
+            <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-800/60">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200/60 bg-gradient-to-br from-slate-50 to-slate-100 shadow-inner dark:border-slate-700 dark:from-slate-800 dark:to-slate-700">
+                <Icon
+                  name="iconify:solar:inbox-line-bold-duotone"
+                  className="h-6 w-6 text-slate-300 dark:text-slate-400"
+                />
+              </div>
+              <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-300">Tidak ada opsi fallback</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {fallbackOptions.map((option) => {
+                const isProcessing = fallbackOrderingPrice === option.maxPrice;
+                return (
+                  <div
+                    key={option.key}
+                    className={cn(
+                      "group rounded-xl border bg-white px-2 py-2.5 transition-all duration-200 dark:bg-slate-900",
+                      isProcessing
+                        ? "border-emerald-300 bg-emerald-50/30 shadow-sm dark:border-emerald-600/50 dark:bg-emerald-950/20"
+                        : "border-slate-200/80 hover:border-slate-300 hover:shadow-sm dark:border-slate-700 dark:hover:border-slate-600"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-200/50 bg-emerald-50 dark:border-emerald-700/50 dark:bg-emerald-900/20">
+                        <Icon
+                          name="iconify:solar:tag-price-bold-duotone"
+                          className="h-5 w-5 text-emerald-600 dark:text-emerald-300"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                          {formatMoney(option.retailPrice)}
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-300">
+                          <span
+                            className={cn(
+                              "inline-block h-1.5 w-1.5 rounded-full",
+                              option.stock > 100
+                                ? "bg-emerald-400"
+                                : option.stock > 10
+                                  ? "bg-amber-400"
+                                  : "bg-rose-400"
+                            )}
+                          />
+                          <span className="font-semibold text-slate-600 dark:text-slate-200">
+                            {option.stock.toLocaleString()}
+                          </span>{" "}
+                          pcs
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={fallbackOrderingPrice !== null}
+                        isLoading={isProcessing}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleOrder(fallbackCountry.id, option.maxPrice, "fallback");
+                        }}
+                        leftIcon="iconify:solar:cart-large-minimalistic-bold-duotone"
+                        className="!h-9 !text-xs !font-bold"
+                      >
+                        {isProcessing ? "Ordering..." : "Order"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            "ui-modal-footer flex items-center gap-2 border-t border-slate-100/80 bg-slate-50/30 dark:border-slate-700",
+            isMobile ? "justify-stretch px-4 pt-3" : "justify-end px-5 py-3.5"
+          )}
+          style={
+            isMobile
+              ? { paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }
+              : undefined
+          }
+        >
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={fallbackOrderingPrice !== null}
+            onClick={() => setFallbackModalOpen(false)}
+            className={cn("!h-9 !text-xs !font-semibold", isMobile && "w-full")}
+          >
+            Tutup
+          </Button>
+        </div>
+      </>
+    ) : null;
+
+  const fallbackBackdropStyle =
+    isMobile && fallbackDrawerOffset !== null
+      ? {
+        opacity: Math.max(0.2, 1 - Math.max(0, fallbackDrawerOffset) / 340),
+      }
+      : undefined;
+
+  const fallbackDrawerStyle =
+    isMobile && fallbackDrawerOffset !== null
+      ? {
+        transform: `translate3d(0, ${Math.min(
+          Math.max(fallbackDrawerOffset, -36),
+          window.innerHeight
+        )}px, 0)`,
+        transition: fallbackDrawerDragging
+          ? "none"
+          : "transform 320ms cubic-bezier(0.32, 0.72, 0, 1)",
+      }
+      : undefined;
+
   const fallbackModalContent =
-    fallbackModalMounted && fallbackCountry && fallbackOffer ? (
-      <div
-        className={cn(
-          "fixed inset-0 z-[1000] flex items-center justify-center p-4",
-          fallbackModalClosing && "pointer-events-none"
-        )}
-      >
+    fallbackModalMounted && fallbackModalInnerContent ? (
+      <div className={cn("fixed inset-0 z-[1000]", fallbackModalClosing && "pointer-events-none")}>
         <button
           type="button"
           onClick={() => {
+            if (isMobile && fallbackDrawerIgnoreBackdropClickRef.current) {
+              fallbackDrawerIgnoreBackdropClickRef.current = false;
+              return;
+            }
             if (fallbackOrderingPrice !== null) return;
             setFallbackModalOpen(false);
           }}
@@ -609,158 +909,35 @@ export default function OrderPage() {
             "absolute inset-0 bg-slate-950/50 backdrop-blur-sm dark:bg-black/70",
             fallbackModalClosing ? "modal-backdrop-exit" : "modal-backdrop-enter"
           )}
+          style={fallbackBackdropStyle}
           aria-label="Close modal"
         />
 
-        <div
-          className={cn(
-            "ui-modal-surface relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",
-            fallbackModalClosing ? "modal-panel-exit" : "modal-panel-enter"
-          )}
-        >
-          {/* Modal Header */}
-          <div
-            className={cn(
-              "ui-modal-header border-b border-slate-100/80 px-5 py-4 dark:border-slate-700",
-              fallbackModalTrigger === "stock-out"
-                ? "bg-gradient-to-r from-amber-50/80 to-orange-50/50 dark:from-amber-950/40 dark:to-orange-950/30"
-                : "bg-gradient-to-r from-emerald-50/80 to-teal-50/50 dark:from-emerald-950/40 dark:to-teal-950/30"
-            )}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg",
-                  fallbackModalTrigger === "stock-out"
-                    ? "bg-gradient-to-br from-amber-400 to-orange-500 shadow-amber-500/25"
-                    : "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/25"
-                )}
-              >
-                <Icon
-                  name={fallbackModalTrigger === "stock-out" ? "warning" : "info"}
-                  className="h-5 w-5 text-white"
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                  {fallbackModalTrigger === "stock-out"
-                    ? "Stok harga utama sedang habis"
-                    : "Pilih harga lain"}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-300">
-                  Opsi harga untuk{" "}
-                  <span className="font-bold text-slate-700 dark:text-slate-100">{selected?.name}</span> di{" "}
-                  <span className="font-bold text-slate-700 dark:text-slate-100">{fallbackCountry.eng}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Modal Body */}
-          <div className="max-h-[420px] overflow-y-auto p-5 scrollbar-thin dark:text-slate-200">
-            {/* Current price info */}
-            <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-200/60 bg-slate-50/80 px-2 py-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                <Icon name="iconify:solar:tag-price-bold-duotone" className="h-4 w-4 text-slate-500" />
-              </div>
-              <div>
-                <p className="text-[11px] font-medium text-slate-400">Harga Termurah saat ini</p>
-                <p className="text-sm font-bold text-slate-800">
-                  {formatMoney(fallbackOffer.retail_price)}
-                </p>
-              </div>
-            </div>
-
-            {fallbackOptions.length === 0 ? (
-              <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-4 py-10 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200/60 shadow-inner">
-                  <Icon
-                    name="iconify:solar:inbox-line-bold-duotone"
-                    className="h-6 w-6 text-slate-300"
-                  />
-                </div>
-                <p className="mt-3 text-sm font-bold text-slate-500">Tidak ada opsi fallback</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {fallbackOptions.map((option) => {
-                  const isProcessing = fallbackOrderingPrice === option.maxPrice;
-                  return (
-                    <div
-                      key={option.key}
-                      className={cn(
-                        "group rounded-xl border bg-white px-2 py-2.5 transition-all duration-200",
-                        isProcessing
-                          ? "border-emerald-300 bg-emerald-50/30 shadow-sm"
-                          : "border-slate-200/80 hover:border-slate-300 hover:shadow-sm"
-                      )}
-                    >
-                      <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 border border-emerald-200/50">
-                          <Icon
-                            name="iconify:solar:tag-price-bold-duotone"
-                            className="h-5 w-5 text-emerald-600"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-slate-800">
-                            {formatMoney(option.retailPrice)}
-                          </p>
-                          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                            <span
-                              className={cn(
-                                "inline-block h-1.5 w-1.5 rounded-full",
-                                option.stock > 100
-                                  ? "bg-emerald-400"
-                                  : option.stock > 10
-                                    ? "bg-amber-400"
-                                    : "bg-rose-400"
-                              )}
-                            />
-                            <span className="font-semibold text-slate-600">
-                              {option.stock.toLocaleString()}
-                            </span>{" "}
-                            pcs 
-                          </div>
-                        </div>
-
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={fallbackOrderingPrice !== null}
-                          isLoading={isProcessing}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleOrder(fallbackCountry.id, option.maxPrice, "fallback");
-                          }}
-                          leftIcon="iconify:solar:cart-large-minimalistic-bold-duotone"
-                          className="!h-9 !text-xs !font-bold"
-                        >
-                          {isProcessing ? "Ordering..." : "Order"}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Modal Footer */}
-          <div className="ui-modal-footer flex items-center justify-end gap-2 border-t border-slate-100/80 bg-slate-50/30 px-5 py-3.5 dark:border-slate-700">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={fallbackOrderingPrice !== null}
-              onClick={() => setFallbackModalOpen(false)}
-              className="!h-9 !text-xs !font-semibold"
+        {isMobile ? (
+          <div className="absolute inset-x-0 bottom-0 z-10">
+            <div
+              className={cn(
+                "ui-modal-surface w-full rounded-t-3xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",
+                "max-h-[86dvh] overflow-hidden",
+                fallbackModalClosing ? "fallback-sheet-exit" : "fallback-sheet-enter"
+              )}
+              style={fallbackDrawerStyle}
             >
-              Tutup
-            </Button>
+              {fallbackModalInnerContent}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="absolute inset-0 z-10 flex items-center justify-center p-4">
+            <div
+              className={cn(
+                "ui-modal-surface w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",
+                fallbackModalClosing ? "modal-panel-exit" : "modal-panel-enter"
+              )}
+            >
+              {fallbackModalInnerContent}
+            </div>
+          </div>
+        )}
       </div>
     ) : null;
 
@@ -1341,6 +1518,40 @@ export default function OrderPage() {
             opacity: 1;
             transform: translateY(0);
           }
+        }
+
+        @keyframes fallbackSheetIn {
+          from {
+            opacity: 0.96;
+            transform: translate3d(0, 100%, 0);
+          }
+          to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+          }
+        }
+
+        @keyframes fallbackSheetOut {
+          from {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+          }
+          to {
+            opacity: 0.96;
+            transform: translate3d(0, 100%, 0);
+          }
+        }
+
+        .fallback-sheet-enter {
+          animation: fallbackSheetIn 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
+          will-change: transform, opacity;
+          backface-visibility: hidden;
+        }
+
+        .fallback-sheet-exit {
+          animation: fallbackSheetOut 250ms cubic-bezier(0.32, 0.72, 0, 1) both;
+          will-change: transform, opacity;
+          backface-visibility: hidden;
         }
 
         .scrollbar-thin {
