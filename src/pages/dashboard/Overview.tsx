@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import DOMPurify from "dompurify";
 import { sileo } from "sileo";
 import { API_BASE, apiFetch } from "../../lib/api";
-import { Badge, Button, Card, Icon } from "../../components/ui";
+import { Badge, Button, Card, Icon, Modal } from "../../components/ui";
 import {
   Area,
   AreaChart,
@@ -69,6 +69,8 @@ type WebsiteBanner = {
 };
 
 const DAY_OPTIONS = [7, 14, 30];
+const LATEST_NEWS_LOGIN_MARK_KEY = "latest-news-login-mark";
+const LATEST_NEWS_SHOWN_MARK_KEY = "latest-news-shown-mark";
 
 function cx(...xs: Array<string | false | undefined | null>) {
   return xs.filter(Boolean).join(" ");
@@ -195,6 +197,8 @@ export default function Overview() {
   const [websiteSettings, setWebsiteSettings] = useState<WebsiteSettingsData | null>(null);
   const [websiteBanners, setWebsiteBanners] = useState<WebsiteBanner[]>([]);
   const [expandedNewsIds, setExpandedNewsIds] = useState<Set<string>>(new Set());
+  const [latestNewsModalOpen, setLatestNewsModalOpen] = useState(false);
+  const [latestNewsModalExpanded, setLatestNewsModalExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState<number>(14);
 
@@ -314,6 +318,39 @@ export default function Overview() {
         .slice(0, 3),
     [newsItems]
   );
+  const latestNewsItem = latestNews[0] ?? null;
+
+  const latestNewsModalContent = useMemo(() => {
+    const contentHtml = String(latestNewsItem?.content ?? "").trim();
+    const contentText = stripHtml(contentHtml);
+    return {
+      html: DOMPurify.sanitize(contentHtml),
+      text: contentText,
+      canToggle: contentText.length > 260,
+    };
+  }, [latestNewsItem?.content]);
+
+  const closeLatestNewsModal = useCallback(() => {
+    setLatestNewsModalOpen(false);
+    setLatestNewsModalExpanded(false);
+  }, []);
+
+  const openLatestNewsModal = useCallback(() => {
+    if (!latestNewsItem?.id) return;
+    setLatestNewsModalExpanded(false);
+    setLatestNewsModalOpen(true);
+  }, [latestNewsItem?.id]);
+
+  useEffect(() => {
+    if (loading || !latestNewsItem?.id || typeof window === "undefined") return;
+    const loginMark = window.sessionStorage.getItem(LATEST_NEWS_LOGIN_MARK_KEY);
+    if (!loginMark) return;
+    const shownMark = window.sessionStorage.getItem(LATEST_NEWS_SHOWN_MARK_KEY);
+    if (shownMark === loginMark) return;
+    setLatestNewsModalExpanded(false);
+    setLatestNewsModalOpen(true);
+    window.sessionStorage.setItem(LATEST_NEWS_SHOWN_MARK_KEY, loginMark);
+  }, [loading, latestNewsItem?.id]);
 
   const sliderBanners = useMemo(() => {
     if (websiteBanners.length === 2)
@@ -325,6 +362,86 @@ export default function Overview() {
 
   return (
     <div className="space-y-6">
+      <Modal
+        open={latestNewsModalOpen}
+        onClose={closeLatestNewsModal}
+        title="Berita Terbaru"
+        scrollOnBackdrop
+        footer={
+          <Button variant="secondary" onClick={closeLatestNewsModal}>
+            Tutup
+          </Button>
+        }
+      >
+        {!latestNewsItem ? (
+          <p className="text-sm text-slate-500">Belum ada berita terbaru.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              {latestNewsItem.tag ? (
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-200/70">
+                  {latestNewsItem.tag}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 ring-1 ring-slate-200/70">
+                  Info
+                </span>
+              )}
+              <span className="text-[11px] text-slate-400">
+                {formatTime(latestNewsItem.publishedAt ?? latestNewsItem.createdAt)}
+              </span>
+            </div>
+
+            <h3 className="text-base font-bold leading-snug text-slate-800">
+              {latestNewsItem.title}
+            </h3>
+
+            {latestNewsModalContent.text && (
+              <div
+                className={cx(
+                  "relative rounded-xl border border-slate-200/70 bg-slate-50/60",
+                  !latestNewsModalExpanded &&
+                    latestNewsModalContent.canToggle &&
+                    "max-h-64 overflow-hidden",
+                )}
+              >
+                <div
+                  className="news-rich-text ql-editor !p-3"
+                  dangerouslySetInnerHTML={{ __html: latestNewsModalContent.html }}
+                />
+                {!latestNewsModalExpanded && latestNewsModalContent.canToggle && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent" />
+                )}
+              </div>
+            )}
+
+            {latestNewsItem.summary ? (
+              <p className="text-xs leading-relaxed text-slate-500">
+                # {latestNewsItem.summary}
+              </p>
+            ) : null}
+
+            {latestNewsModalContent.canToggle && (
+              <button
+                type="button"
+                onClick={() => setLatestNewsModalExpanded((prev) => !prev)}
+                className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 transition-colors hover:text-emerald-600"
+              >
+                <Icon
+                  name={
+                    latestNewsModalExpanded
+                      ? "iconify:solar:alt-arrow-up-bold"
+                      : "iconify:solar:alt-arrow-down-bold"
+                  }
+                  className="h-3 w-3"
+                />
+                {latestNewsModalExpanded ? "Show less" : "Show full"}
+              </button>
+            )}
+          </div>
+        )}
+      </Modal>
+
       {/* ════════ MAINTENANCE BANNER ════════ */}
       {websiteSettings?.maintenanceMode && (
         <div className="rounded-xl border border-red-200/60 bg-gradient-to-r from-red-50/80 to-red-50/50 px-5 py-4 shadow-sm">
@@ -736,9 +853,19 @@ export default function Overview() {
                 </div>
               </div>
               {latestNews.length > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 ring-1 ring-emerald-200/60">
-                  {latestNews.length} berita
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600 ring-1 ring-emerald-200/60">
+                    {latestNews.length} berita
+                  </span>
+                  <button
+                    type="button"
+                    onClick={openLatestNewsModal}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 ring-1 ring-slate-200/70 transition-colors hover:bg-slate-200"
+                  >
+                    <Icon name="iconify:solar:eye-bold" className="h-3 w-3" />
+                    Lihat terbaru
+                  </button>
+                </div>
               )}
             </div>
           </div>

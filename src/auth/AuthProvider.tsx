@@ -6,6 +6,9 @@ import {
   setUserBearerToken,
 } from "../lib/api";
 
+const LATEST_NEWS_LOGIN_MARK_KEY = "latest-news-login-mark";
+const LATEST_NEWS_SHOWN_MARK_KEY = "latest-news-shown-mark";
+
 type User = { id: string; email: string; name?: string | null; balance?: number };
 type AuthState = {
   user: User | null;
@@ -59,6 +62,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
     setAccessToken(data.accessToken);
     setUserBearerToken(data.accessToken ?? null);
+    if (typeof window !== "undefined") {
+      const mark = String(Date.now());
+      window.sessionStorage.setItem(LATEST_NEWS_LOGIN_MARK_KEY, mark);
+      window.sessionStorage.removeItem(LATEST_NEWS_SHOWN_MARK_KEY);
+    }
   }
 
   async function register(
@@ -82,6 +90,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setAccessToken(null);
       setUserBearerToken(null);
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(LATEST_NEWS_LOGIN_MARK_KEY);
+        window.sessionStorage.removeItem(LATEST_NEWS_SHOWN_MARK_KEY);
+      }
     }
   }
 

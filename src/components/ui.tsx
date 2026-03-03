@@ -794,12 +794,14 @@ export function Modal({
   children,
   onClose,
   footer,
+  scrollOnBackdrop = false,
 }: {
   open: boolean;
   title: React.ReactNode;
   children: React.ReactNode;
   onClose: () => void;
   footer?: React.ReactNode;
+  scrollOnBackdrop?: boolean;
 }) {
   const { mounted, isClosing } = useModalPresence(open, MODAL_EXIT_DURATION_MS);
 
@@ -824,17 +826,29 @@ export function Modal({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className={cx("fixed inset-0 z-[1000]", isClosing && "pointer-events-none")}>
+    <div
+      className={cx(
+        "fixed inset-0 z-[1000]",
+        scrollOnBackdrop && "overflow-y-auto",
+        isClosing && "pointer-events-none",
+      )}
+    >
       <button
         type="button"
         className={cx(
-          "absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] dark:bg-black/70",
+          "fixed inset-0 bg-slate-950/45 backdrop-blur-[2px] dark:bg-black/70",
           isClosing ? "modal-backdrop-exit" : "modal-backdrop-enter",
         )}
         onClick={onClose}
         aria-label="Close modal"
       />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
+      <div
+        className={cx(
+          scrollOnBackdrop
+            ? "relative z-10 flex min-h-full items-start justify-center p-4 py-6 sm:py-10"
+            : "absolute inset-0 flex items-center justify-center p-4",
+        )}
+      >
         <div
           className={cx(
             "ui-modal-surface w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/40",

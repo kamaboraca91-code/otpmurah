@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { sileo } from "sileo";
 import { Button, Icon } from "../components/ui";
 import { useAuth } from "../auth/useAuth";
 import { UserRouteTransition } from "../components/pageTransition";
@@ -59,8 +60,10 @@ export default function DashboardLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [websiteBranding, setWebsiteBranding] = useState<WebsiteBranding | null>(null);
+  const [websiteSettingsLoaded, setWebsiteSettingsLoaded] = useState(false);
 
   const profileRef = useRef<HTMLDivElement>(null);
+  const maintenanceToastLockRef = useRef(false);
 
   useClickOutside(profileRef, () => setProfileOpen(false));
 
@@ -82,6 +85,9 @@ export default function DashboardLayout() {
       } catch {
         if (!active) return;
         setWebsiteBranding(null);
+      } finally {
+        if (!active) return;
+        setWebsiteSettingsLoaded(true);
       }
     })();
 
@@ -89,6 +95,29 @@ export default function DashboardLayout() {
       active = false;
     };
   }, []);
+
+  const isOrderBlockedByMaintenance =
+    websiteSettingsLoaded &&
+    Boolean(websiteBranding?.maintenanceMode) &&
+    loc.pathname.startsWith("/orders");
+
+  useEffect(() => {
+    if (!isOrderBlockedByMaintenance) {
+      maintenanceToastLockRef.current = false;
+      return;
+    }
+    if (maintenanceToastLockRef.current) return;
+    maintenanceToastLockRef.current = true;
+
+    sileo.warning({
+      title: "Order dinonaktifkan saat maintenance",
+      description:
+        String(websiteBranding?.maintenanceMessage ?? "").trim() ||
+        "Silakan kembali ke dashboard, order akan dibuka lagi setelah maintenance selesai.",
+      position: "top-center",
+    });
+    nav("/", { replace: true });
+  }, [isOrderBlockedByMaintenance, nav, websiteBranding?.maintenanceMessage]);
 
   const items: NavItem[] = useMemo(
     () => [
@@ -326,7 +355,7 @@ export default function DashboardLayout() {
               <div className="flex min-h-full flex-col pb-24 md:pb-0">
                 {/* Page content */}
                 <main className="mx-auto w-full min-w-0 flex-1 px-4 py-5 sm:px-6">
-                
+
                   <UserRouteTransition
                     transitionKey={loc.pathname}
                     routePath={loc.pathname}
@@ -334,23 +363,65 @@ export default function DashboardLayout() {
                     minDurationMs={240}
                     className="min-h-[60vh]"
                   >
-                    <Outlet />
+                    {isOrderBlockedByMaintenance ? <div className="min-h-[40vh]" aria-hidden="true" /> : <Outlet />}
                   </UserRouteTransition>
                 </main>
 
                 {/* Footer — always at the very bottom */}
-                <footer className="mt-auto hidden shrink-0 border-t border-slate-200/70 bg-white/60 md:block md:backdrop-blur dark:border-slate-800/80 dark:bg-slate-950/70">
-                  <div className="mx-auto flex flex-col gap-2 px-4 py-4 text-[11px] text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                    <span>
-                      © {new Date().getFullYear()} {websiteBranding?.siteName || "OTP Seller"} • Built with security
-                      in mind
-                    </span>
-                    <div className="flex items-center gap-4">
+                <footer className="mt-auto hidden shrink-0 border-t border-slate-200/50 bg-gradient-to-r from-white/80 via-slate-50/60 to-white/80 md:block md:backdrop-blur-xl dark:border-slate-700/40 dark:from-slate-950/90 dark:via-slate-900/80 dark:to-slate-950/90">
+                  <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-                      <span className="inline-flex items-center gap-1.5 text-emerald-500">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                        All systems normal
-                      </span>
+                      {/* Left - Brand & Copyright */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-md shadow-emerald-500/20 dark:shadow-emerald-500/10">
+                          <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+                          </svg>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[12px] font-semibold tracking-tight text-slate-700 dark:text-slate-200">
+                            {websiteBranding?.siteName || "OTP Seller"}
+                          </span>
+                          <span className="text-[10.5px] font-medium text-slate-400 dark:text-slate-500">
+                            © {new Date().getFullYear()} All rights reserved
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Center - Creator Credit */}
+                      <a
+                        href="https://wa.me/6285237561797"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-center gap-2.5 rounded-full border border-slate-200/80 bg-white/70 px-4 py-1.5 backdrop-blur-sm transition-all duration-300 hover:border-emerald-300/80 hover:shadow-md hover:shadow-emerald-500/10 dark:border-slate-700/50 dark:bg-slate-800/50 dark:hover:border-emerald-500/40"
+                      >
+                        <svg className="h-3.5 w-3.5 text-slate-400 transition-colors duration-300 group-hover:text-emerald-500 dark:text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                        </svg>
+                        <span className="text-[10.5px] font-medium tracking-wide text-slate-500 transition-colors duration-300 group-hover:text-emerald-600 dark:text-slate-400 dark:group-hover:text-emerald-400">
+                          Crafted by
+                        </span>
+                        <span className="bg-gradient-to-r from-emerald-600 to-emerald-600 bg-clip-text text-[11px] font-bold tracking-wide text-transparent dark:from-emerald-400 dark:to-emerald-400">
+                          NurCode
+                        </span>
+                        <svg className="h-3 w-3 text-slate-300 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-emerald-500 dark:text-slate-600" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                        </svg>
+                      </a>
+
+                      {/* Right - System Status */}
+                      <div className="flex items-center gap-4">
+                        <div className="group flex items-center gap-2.5 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-3.5 py-1.5 transition-all duration-300 hover:border-emerald-300/80 hover:shadow-sm hover:shadow-emerald-500/10 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:hover:border-emerald-500/30">
+                          <span className="relative flex h-2 w-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 dark:bg-emerald-500" />
+                            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+                          </span>
+                          <span className="text-[11px] font-semibold tracking-wide text-emerald-700 dark:text-emerald-400">
+                            All systems operational
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </footer>

@@ -795,7 +795,7 @@ export default function DepositPage() {
                             </div>
                             <div>
                               <p className="text-[11px] font-bold text-slate-700">
-                                Countdown pembayaran
+                                Batas pembayaran
                               </p>
                               <p className="text-[10px] text-slate-500">
                                 Otomatis gagal jika melewati batas waktu
