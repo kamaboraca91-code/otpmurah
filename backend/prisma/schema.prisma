@@ -245,6 +245,8 @@ model WebsiteSettings {
   logoUrl            String?
   maintenanceMode    Boolean  @default(false)
   maintenanceMessage String?
+  seo                Json?
+  landingContent     Json?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -257,11 +259,14 @@ model WebsiteBanner {
   linkUrl          String?
   sortOrder        Int      @default(0)
   isActive         Boolean  @default(true)
+  startAt          DateTime?
+  endAt            DateTime?
   createdByAdminId String?
   updatedByAdminId String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+  @@index([startAt, endAt])
   @@index([createdAt])
 }

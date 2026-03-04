@@ -12,8 +12,8 @@ import {
 type NavItem = { label: string; href: string };
 
 const navItems: NavItem[] = [
-  { label: "Product", href: "#product" },
-  { label: "How it works", href: "#how" },
+  { label: "Produk", href: "#product" },
+  { label: "Cara kerja", href: "#how" },
   { label: "FAQ", href: "#faq" },
 ];
 
@@ -30,6 +30,28 @@ function Container({ children, className }: { children: React.ReactNode; classNa
       {children}
     </div>
   );
+}
+
+function upsertMeta(selector: string, attrs: Record<string, string>) {
+  let el = document.head.querySelector(selector) as HTMLMetaElement | null;
+  if (!el) {
+    el = document.createElement("meta");
+    document.head.appendChild(el);
+  }
+  Object.entries(attrs).forEach(([key, value]) => {
+    el!.setAttribute(key, value);
+  });
+}
+
+function upsertLink(selector: string, attrs: Record<string, string>) {
+  let el = document.head.querySelector(selector) as HTMLLinkElement | null;
+  if (!el) {
+    el = document.createElement("link");
+    document.head.appendChild(el);
+  }
+  Object.entries(attrs).forEach(([key, value]) => {
+    el!.setAttribute(key, value);
+  });
 }
 
 /* â”€â”€â”€ Intersection Observer hook for scroll animations â”€â”€â”€ */
@@ -153,7 +175,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const siteName = branding.siteName || "OTP Seller";
-  const siteDescription = branding.siteDescription || "Virtual Numbers - Receive OTP";
+  const siteDescription = branding.siteDescription || "Nomor Virtual - Terima OTP";
   const logoUrl = branding.logoUrl;
 
   useEffect(() => {
@@ -220,6 +242,9 @@ function Header({ branding }: { branding: WebsiteBranding }) {
                 <div className="truncate text-[15px] font-extrabold tracking-wide text-slate-900 dark:text-slate-100">
                   {siteName}
                 </div>
+                <div className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  {siteDescription}
+                </div>
               </div>
             </a>
 
@@ -245,12 +270,12 @@ function Header({ branding }: { branding: WebsiteBranding }) {
 
               <Link to="/login">
                 <Button leftIcon="iconify:solar:login-3-bold-duotone" variant="secondary" size="sm">
-                  Log in
+                  Masuk
                 </Button>
               </Link>
               <Link to="/register">
                 <Button leftIcon="arrowRight" size="sm">
-                  Receive SMS
+                  Terima SMS
                 </Button>
               </Link>
             </div>
@@ -260,7 +285,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
 
               <button
                 type="button"
-                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
                 onClick={() => setMobileOpen((v) => !v)}
                 className={cx(
                   "inline-flex h-10 w-10 items-center justify-center rounded-lg border transition-all duration-200",
@@ -308,7 +333,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
             <div className="flex gap-2">
               <Button size="sm" variant="secondary" className="w-full">
                 <Link to="/login" onClick={() => setMobileOpen(false)}>
-                  Log in
+                  Masuk
                 </Link>
               </Button>
               <Button
@@ -320,7 +345,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
                   document.getElementById("product")?.scrollIntoView({ behavior: "smooth" });
                 }}
               >
-                Receive SMS
+                Terima SMS
               </Button>
             </div>
           </Container>
@@ -329,7 +354,7 @@ function Header({ branding }: { branding: WebsiteBranding }) {
 
       <button
         type="button"
-        aria-label="Close menu"
+        aria-label="Tutup menu"
         onClick={() => setMobileOpen(false)}
         className={cx(
           "fixed inset-0 top-16 z-40 bg-slate-950/35 backdrop-blur-[2px] transition-opacity duration-300 lg:hidden",
@@ -382,7 +407,7 @@ function SectionTitle({
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  HERO                                                              */
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function Hero() {
+function Hero({ content }: { content: WebsiteBranding["landingContent"] }) {
   return (
     <div id="top" className="relative overflow-hidden bg-white dark:bg-slate-950">
       {/* Decorative background */}
@@ -414,27 +439,26 @@ function Hero() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100/80 px-3 py-1 text-[11px] font-bold text-emerald-800 ring-1 ring-emerald-200/60">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live service
+                  {content.heroBadge}
                 </span>
-                <Badge tone="slate">180+ countries</Badge>
-                <Badge tone="slate">700+ services</Badge>
+                <Badge tone="slate">180+ negara</Badge>
+                <Badge tone="slate">700+ layanan</Badge>
               </div>
             </FadeIn>
 
             <FadeIn delay={100}>
               <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl leading-[1.1]">
-                Receive OTP SMS
+                {content.heroTitle}
                 <br />
                 <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
-                  with virtual numbers
+                  {content.heroHighlight}
                 </span>
               </h1>
             </FadeIn>
 
             <FadeIn delay={200}>
               <p className="mt-5 max-w-xl text-base text-slate-500 sm:text-lg leading-relaxed">
-                Choose country & service, buy a number, and receive verification codes instantly.
-                Perfect for messengers, social networks, marketplaces, and more.
+                {content.heroDescription}
               </p>
             </FadeIn>
 
@@ -442,14 +466,17 @@ function Hero() {
               <div className="mt-8 flex gap-3 sm:flex-row sm:items-center">
                 <Link to="/register">
                   <Button size="sm">
-                    Get Started
+                    {content.heroPrimaryCta}
                   </Button>
                 </Link>
                 <Button
                   size="sm"
                   variant="secondary"
+                  onClick={() =>
+                    document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })
+                  }
                 >
-                  How it works
+                  {content.heroSecondaryCta}
                 </Button>
               </div>
             </FadeIn>
@@ -458,10 +485,10 @@ function Hero() {
             <FadeIn delay={400}>
               <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
-                  { label: "Countries", value: 180, suffix: "+" },
-                  { label: "Services", value: 700, suffix: "+" },
-                  { label: "Uptime", value: 99, suffix: "%" },
-                  { label: "Users", value: 50, suffix: "K+" },
+                  { label: "Negara", value: 180, suffix: "+" },
+                  { label: "Layanan", value: 700, suffix: "+" },
+                  { label: "Waktu aktif", value: 99, suffix: "%" },
+                  { label: "Pengguna", value: 50, suffix: "K+" },
                 ].map((s) => (
                   <div
                     key={s.label}
@@ -480,9 +507,9 @@ function Hero() {
             <FadeIn delay={500}>
               <div className="mt-8 flex flex-wrap items-center gap-2">
                 {[
-                  { icon: "shield", label: "Privacy first" },
-                  { icon: "bolt", label: "Instant delivery" },
-                  { icon: "sparkles", label: "Clean UX" },
+                  { icon: "shield", label: "Privasi utama" },
+                  { icon: "bolt", label: "Pengiriman instan" },
+                  { icon: "sparkles", label: "UI bersih" },
                 ].map((chip) => (
                   <span
                     key={chip.label}
@@ -510,7 +537,7 @@ function Hero() {
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30">
                         <Icon name="check" className="h-3.5 w-3.5" />
                       </span>
-                      Live delivery status
+                      Status pengiriman langsung
                     </div>
                   </div>
 
@@ -522,8 +549,8 @@ function Hero() {
                           <Icon name="bolt" className="h-4 w-4 text-emerald-600" />
                         </div>
                         <div>
-                          <div className="text-[10px] font-medium text-slate-400">Avg. delivery</div>
-                          <div className="text-sm font-bold text-slate-900">~15 sec</div>
+                          <div className="text-[10px] font-medium text-slate-400">Rata-rata kirim</div>
+                          <div className="text-sm font-bold text-slate-900">~15 dtk</div>
                         </div>
                       </div>
                     </div>
@@ -531,7 +558,7 @@ function Hero() {
 
                   <img
                     src={phoneHeroImg}
-                    alt="OTP dashboard preview"
+                    alt="Pratinjau dashboard OTP"
                     className="relative w-full max-w-[400px] mx-auto drop-shadow-2xl"
                     loading="lazy"
                   />
@@ -551,7 +578,7 @@ function Hero() {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  PRODUCT SECTION                                                   */
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function ProductSection() {
+function ProductSection({ content }: { content: WebsiteBranding["landingContent"] }) {
   return (
     <section id="product" className="py-20 sm:py-24 scroll-mt-28 relative">
       {/* Background accent */}
@@ -559,9 +586,9 @@ function ProductSection() {
 
       <Container className="relative">
         <SectionTitle
-          eyebrow="Product"
-          title="Why choose our virtual numbers"
-          subtitle="Built for verification flows on popular platforms â€” simple, fast, and privacy-friendly."
+          eyebrow={content.productEyebrow}
+          title={content.productTitle}
+          subtitle={content.productSubtitle}
         />
 
         <div className="mt-12 grid gap-5 lg:grid-cols-12">
@@ -574,18 +601,18 @@ function ProductSection() {
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
                       <Icon name="check" className="h-4.5 w-4.5 text-white" />
                     </div>
-                    <span className="text-sm font-bold text-slate-800">Key benefits</span>
+                    <span className="text-sm font-bold text-slate-800">Keunggulan utama</span>
                   </div>
-                  <Badge tone="emerald">Reliable</Badge>
+                  <Badge tone="emerald">Andal</Badge>
                 </div>
 
                 <div className="mt-5 space-y-2.5">
                   {[
-                    "Receive OTP SMS online in minutes.",
-                    "Choose from many countries and services.",
-                    "Convenient top-up and clear pricing.",
-                    "Discount levels for regular customers.",
-                    "Support available when you need it.",
+                    "Terima OTP SMS online dalam hitungan menit.",
+                    "Pilih dari banyak negara dan layanan.",
+                    "Isi saldo mudah dengan harga yang jelas.",
+                    "Level diskon untuk pelanggan rutin.",
+                    "Dukungan siap saat kamu butuh.",
                   ].map((b, i) => (
                     <FadeIn key={b} delay={i * 80}>
                       <div className="group flex items-start gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-700 transition-colors hover:bg-emerald-50/50">
@@ -600,9 +627,9 @@ function ProductSection() {
 
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   {[
-                    { k: "Countries", v: "180+", icon: "solar:global-bold-duotone", color: "from-blue-500 to-indigo-600" },
-                    { k: "Services", v: "700+", icon: "solar:widget-bold-duotone", color: "from-violet-500 to-purple-600" },
-                    { k: "Delivery", v: "Instant", icon: "solar:bolt-bold-duotone", color: "from-amber-500 to-orange-600" },
+                    { k: "Negara", v: "180+", icon: "solar:global-bold-duotone", color: "from-blue-500 to-indigo-600" },
+                    { k: "Layanan", v: "700+", icon: "solar:widget-bold-duotone", color: "from-violet-500 to-purple-600" },
+                    { k: "Pengiriman", v: "Instan", icon: "solar:bolt-bold-duotone", color: "from-amber-500 to-orange-600" },
                   ].map((s, i) => (
                     <FadeIn key={s.k} delay={i * 100}>
                       <div className="group rounded-2xl border border-slate-200/60 bg-white p-4 transition-all duration-300 hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-500/5">
@@ -629,20 +656,20 @@ function ProductSection() {
               {[
                 {
                   icon: "shield",
-                  title: "Privacy protection",
-                  desc: "Register without exposing your real number.",
+                  title: "Perlindungan privasi",
+                  desc: "Daftar tanpa membuka nomor asli kamu.",
                   gradient: "from-emerald-500 to-green-600",
                 },
                 {
                   icon: "bolt",
-                  title: "Fast reception",
-                  desc: "Get codes quickly, no SIM hassle.",
+                  title: "Penerimaan cepat",
+                  desc: "Dapatkan kode lebih cepat tanpa ribet SIM.",
                   gradient: "from-amber-500 to-orange-600",
                 },
                 {
                   icon: "sparkles",
-                  title: "Clean dashboard",
-                  desc: "Search services, view history, manage balance.",
+                  title: "Dashboard rapi",
+                  desc: "Cari layanan, lihat riwayat, dan kelola saldo.",
                   gradient: "from-violet-500 to-purple-600",
                 },
               ].map((x, i) => (
@@ -675,9 +702,9 @@ function ProductSection() {
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/20">
                       <Icon name="iconify:solar:widget-bold-duotone" className="h-4.5 w-4.5 text-white" />
                     </div>
-                    <span className="text-sm font-bold text-slate-800">Popular services</span>
+                    <span className="text-sm font-bold text-slate-800">Layanan populer</span>
                   </div>
-                  <Badge tone="slate">Directory</Badge>
+                  <Badge tone="slate">Direktori</Badge>
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -706,8 +733,8 @@ function ProductSection() {
                     <Icon name="sparkles" className="h-3.5 w-3.5 text-emerald-600" />
                   </div>
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    <span className="font-bold">Pro tip:</span> If your service isn't listed, select{" "}
-                    <span className="font-bold text-slate-800">"Any other"</span> for compatibility.
+                    <span className="font-bold">Tips:</span> Jika layanan yang kamu cari belum ada, pilih{" "}
+                    <span className="font-bold text-slate-800">"Lainnya"</span> agar tetap kompatibel.
                   </p>
                 </div>
               </div>
@@ -722,19 +749,19 @@ function ProductSection() {
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
                     <Icon name="iconify:solar:global-bold-duotone" className="h-4.5 w-4.5 text-white" />
                   </div>
-                  <span className="text-sm font-bold text-slate-800">Countries coverage</span>
+                  <span className="text-sm font-bold text-slate-800">Cakupan negara</span>
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2.5">
                   {[
-                    { flag: "twemoji:flag-united-states", name: "United States" },
-                    { flag: "twemoji:flag-united-kingdom", name: "United Kingdom" },
+                    { flag: "twemoji:flag-united-states", name: "Amerika Serikat" },
+                    { flag: "twemoji:flag-united-kingdom", name: "Inggris" },
                     { flag: "twemoji:flag-indonesia", name: "Indonesia" },
                     { flag: "twemoji:flag-india", name: "India" },
-                    { flag: "twemoji:flag-brazil", name: "Brazil" },
-                    { flag: "twemoji:flag-germany", name: "Germany" },
-                    { flag: "twemoji:flag-france", name: "France" },
-                    { flag: "twemoji:flag-for-flag-turkey", name: "Turkey" },
+                    { flag: "twemoji:flag-brazil", name: "Brasil" },
+                    { flag: "twemoji:flag-germany", name: "Jerman" },
+                    { flag: "twemoji:flag-france", name: "Prancis" },
+                    { flag: "twemoji:flag-for-flag-turkey", name: "Turki" },
                   ].map((c) => (
                     <div
                       key={c.name}
@@ -752,7 +779,7 @@ function ProductSection() {
                 </div>
 
                 <p className="mt-4 text-[11px] text-slate-400">
-                  Availability may vary by time and service.
+                  Ketersediaan bisa berubah tergantung waktu dan layanan.
                 </p>
               </div>
             </FadeIn>
@@ -768,40 +795,40 @@ function ProductSection() {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  HOW IT WORKS                                                      */
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function HowItWorks() {
+function HowItWorks({ content }: { content: WebsiteBranding["landingContent"] }) {
   const steps = [
     {
       n: "01",
-      title: "Create an account",
-      desc: "Register and access your personal dashboard.",
+      title: "Buat akun",
+      desc: "Daftar lalu akses dashboard pribadimu.",
       icon: "solar:user-plus-bold-duotone",
       color: "from-blue-500 to-indigo-600",
     },
     {
       n: "02",
-      title: "Top up balance",
-      desc: "Add funds via QRIS or other payment methods.",
+      title: "Isi saldo",
+      desc: "Tambah dana lewat QRIS atau metode pembayaran lainnya.",
       icon: "solar:wallet-money-bold-duotone",
       color: "from-violet-500 to-purple-600",
     },
     {
       n: "03",
-      title: "Choose service & country",
-      desc: "Pick the platform and region you need.",
+      title: "Pilih layanan & negara",
+      desc: "Pilih platform dan wilayah sesuai kebutuhanmu.",
       icon: "solar:global-bold-duotone",
       color: "from-emerald-500 to-teal-600",
     },
     {
       n: "04",
-      title: "Buy number",
-      desc: "Get a virtual number assigned instantly.",
+      title: "Beli nomor",
+      desc: "Nomor virtual langsung diberikan secara instan.",
       icon: "solar:phone-bold-duotone",
       color: "from-amber-500 to-orange-600",
     },
     {
       n: "05",
-      title: "Receive OTP",
-      desc: "Wait for the code and verify your account.",
+      title: "Terima OTP",
+      desc: "Tunggu kodenya masuk lalu verifikasi akunmu.",
       icon: "solar:chat-round-check-bold-duotone",
       color: "from-rose-500 to-pink-600",
     },
@@ -813,21 +840,21 @@ function HowItWorks() {
 
       <Container className="relative">
         <SectionTitle
-          eyebrow="How it works"
-          title="Five simple steps to receive OTP"
-          subtitle="A straightforward flow for daily verification needs."
+          eyebrow={content.howEyebrow}
+          title={content.howTitle}
+          subtitle={content.howSubtitle}
         />
 
         <div className="mt-12 grid gap-5 lg:grid-cols-12">
           {/* Steps */}
           <div className="lg:col-span-7">
             <div className="rounded-2xl border border-slate-200/60 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
-                  <Icon name="iconify:solar:routing-bold-duotone" className="h-4.5 w-4.5 text-white" />
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
+                    <Icon name="iconify:solar:routing-bold-duotone" className="h-4.5 w-4.5 text-white" />
+                  </div>
+                  <span className="text-sm font-bold text-slate-800">Langkah demi langkah</span>
                 </div>
-                <span className="text-sm font-bold text-slate-800">Step-by-step</span>
-              </div>
 
               <div className="space-y-3">
                 {steps.map((s, i) => (
@@ -839,7 +866,7 @@ function HowItWorks() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] font-bold text-slate-400 tracking-wider">
-                            STEP {s.n}
+                            LANGKAH {s.n}
                           </span>
                         </div>
                         <div className="mt-0.5 text-sm font-bold text-slate-800">{s.title}</div>
@@ -863,7 +890,7 @@ function HowItWorks() {
                     </div>
                     <span className="text-sm font-bold text-slate-800">Tips</span>
                   </div>
-                  <Badge tone="emerald">Helpful</Badge>
+                  <Badge tone="emerald">Bermanfaat</Badge>
                 </div>
 
                 <div className="mt-5 space-y-3">
@@ -873,9 +900,9 @@ function HowItWorks() {
                         <Icon name="sparkles" className="h-3.5 w-3.5 text-sky-600" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-sky-900">Use "Any other"</div>
+                        <div className="text-xs font-bold text-sky-900">Gunakan "Lainnya"</div>
                         <div className="mt-0.5 text-[11px] text-sky-700 leading-relaxed">
-                          If the service you need isn't listed, select "Any other" for compatibility.
+                          Kalau layanan yang kamu butuhkan belum ada, pilih "Lainnya" agar tetap kompatibel.
                         </div>
                       </div>
                     </div>
@@ -887,9 +914,9 @@ function HowItWorks() {
                         <Icon name="bolt" className="h-3.5 w-3.5 text-emerald-600" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-emerald-900">Higher availability</div>
+                        <div className="text-xs font-bold text-emerald-900">Ketersediaan lebih tinggi</div>
                         <div className="mt-0.5 text-[11px] text-emerald-700 leading-relaxed">
-                          Choose countries with more stock to improve delivery speed and reliability.
+                          Pilih negara dengan stok lebih besar agar lebih cepat dan stabil.
                         </div>
                       </div>
                     </div>
@@ -901,9 +928,9 @@ function HowItWorks() {
                         <Icon name="shield" className="h-3.5 w-3.5 text-violet-600" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-violet-900">Auto-refund</div>
+                        <div className="text-xs font-bold text-violet-900">Refund otomatis</div>
                         <div className="mt-0.5 text-[11px] text-violet-700 leading-relaxed">
-                          If no SMS is received, your balance is automatically refunded.
+                          Jika SMS tidak masuk, saldo kamu akan dikembalikan otomatis.
                         </div>
                       </div>
                     </div>
@@ -918,7 +945,7 @@ function HowItWorks() {
                       document.getElementById("product")?.scrollIntoView({ behavior: "smooth" })
                     }
                   >
-                    Browse services
+                    Jelajahi layanan
                   </Button>
                 </div>
               </div>
@@ -935,30 +962,30 @@ function HowItWorks() {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  FAQ                                                               */
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function FAQ() {
+function FAQ({ content }: { content: WebsiteBranding["landingContent"] }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   const faqs = useMemo(
     () => [
       {
-        q: "What is a virtual number for OTP?",
-        a: "A temporary number you purchase to receive verification SMS (OTP) without using your personal SIM card. It protects your privacy while allowing you to register on various platforms.",
+        q: "Apa itu nomor virtual untuk OTP?",
+        a: "Nomor sementara yang kamu beli untuk menerima SMS verifikasi (OTP) tanpa memakai SIM pribadi. Privasi lebih aman dan tetap bisa daftar di berbagai platform.",
       },
       {
-        q: "What if the OTP doesn't arrive?",
-        a: "Try a different country or purchase another number. If no SMS is received within the time window, your balance is automatically refunded.",
+        q: "Bagaimana kalau OTP tidak masuk?",
+        a: "Coba pilih negara lain atau beli nomor lain. Jika tidak ada SMS sampai batas waktu, saldo akan dikembalikan otomatis.",
       },
       {
-        q: "Can I choose specific countries?",
-        a: "Yes! Choose from 180+ countries depending on current stock availability. Popular countries like USA, UK, and Indonesia are always well-stocked.",
+        q: "Apakah bisa pilih negara tertentu?",
+        a: "Bisa. Tersedia 180+ negara tergantung stok saat itu. Negara populer seperti AS, Inggris, dan Indonesia biasanya stoknya banyak.",
       },
       {
-        q: "What services are supported?",
-        a: "700+ services including Telegram, WhatsApp, Google, Facebook, Instagram, and more. For unlisted platforms, use the \"Any other\" option.",
+        q: "Layanan apa saja yang didukung?",
+        a: "Ada 700+ layanan termasuk Telegram, WhatsApp, Google, Facebook, Instagram, dan lainnya. Untuk platform yang belum ada, gunakan opsi \"Lainnya\".",
       },
       {
-        q: "Do you provide discounts?",
-        a: "Yes, we offer discount tiers based on your top-up volume and loyalty level. Regular customers enjoy better pricing automatically.",
+        q: "Apakah ada diskon?",
+        a: "Ada. Kami menyediakan tier diskon berdasarkan volume top up dan level loyalitas. Pelanggan rutin otomatis mendapat harga lebih baik.",
       },
     ],
     []
@@ -970,9 +997,9 @@ function FAQ() {
 
       <Container className="relative">
         <SectionTitle
-          eyebrow="FAQ"
-          title="Frequently asked questions"
-          subtitle="Quick answers to common questions about our service."
+          eyebrow={content.faqEyebrow}
+          title={content.faqTitle}
+          subtitle={content.faqSubtitle}
         />
 
         <div className="mt-12 grid gap-5 lg:grid-cols-12">
@@ -984,7 +1011,7 @@ function FAQ() {
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20">
                     <Icon name="iconify:solar:question-circle-bold-duotone" className="h-4.5 w-4.5 text-white" />
                   </div>
-                  <span className="text-sm font-bold text-slate-800">Answers</span>
+                  <span className="text-sm font-bold text-slate-800">Jawaban</span>
                 </div>
 
                 <div className="space-y-2.5">
@@ -1045,9 +1072,9 @@ function FAQ() {
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20">
                       <Icon name="iconify:solar:chat-round-dots-bold-duotone" className="h-4.5 w-4.5 text-white" />
                     </div>
-                    <span className="text-sm font-bold text-slate-800">Contact</span>
+                    <span className="text-sm font-bold text-slate-800">Kontak</span>
                   </div>
-                  <Badge tone="emerald">Support</Badge>
+                  <Badge tone="emerald">Bantuan</Badge>
                 </div>
 
                 <div className="mt-5 space-y-4">
@@ -1057,9 +1084,9 @@ function FAQ() {
                         <Icon name="iconify:solar:chat-round-check-bold-duotone" className="h-3.5 w-3.5 text-emerald-600" />
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-emerald-900">Need help?</div>
+                        <div className="text-xs font-bold text-emerald-900">Butuh bantuan?</div>
                         <div className="mt-0.5 text-[11px] text-emerald-700 leading-relaxed">
-                          Send us a message and we'll get back to you as soon as possible.
+                          Kirim pesan ke kami, tim akan membalas secepat mungkin.
                         </div>
                       </div>
                     </div>
@@ -1067,12 +1094,12 @@ function FAQ() {
 
                   <Input
                     label="Email"
-                    placeholder="you@company.com"
+                    placeholder="kamu@email.com"
                     leftIcon="iconify:solar:letter-bold-duotone"
                   />
                   <Input
-                    label="Message"
-                    placeholder="Tell us your issue..."
+                    label="Pesan"
+                    placeholder="Ceritakan kendalanya..."
                     leftIcon="iconify:solar:chat-line-bold-duotone"
                   />
                   <Button
@@ -1080,7 +1107,7 @@ function FAQ() {
                     rightIcon="arrowRight"
                     className="w-full !h-10 !text-xs !font-bold"
                   >
-                    Send message
+                    Kirim pesan
                   </Button>
                 </div>
               </div>
@@ -1095,7 +1122,7 @@ function FAQ() {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 /*  CTA SECTION                                                       */
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-function CTASection() {
+function CTASection({ content }: { content: WebsiteBranding["landingContent"] }) {
   return (
     <section className="py-20 sm:py-24 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700" />
@@ -1117,16 +1144,13 @@ function CTASection() {
           <div className="mx-auto max-w-2xl">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm px-4 py-1.5 text-xs font-bold text-white/90 ring-1 ring-white/20">
               <Icon name="sparkles" className="h-3.5 w-3.5" />
-              Ready to get started?
+              {content.ctaBadge}
             </div>
             <h2 className="text-3xl font-bold text-white sm:text-4xl leading-tight">
-              Start receiving OTP
-              <br />
-              SMS today
+              {content.ctaTitle}
             </h2>
             <p className="mt-4 text-base text-white/80 leading-relaxed">
-              Join thousands of users who trust our platform for fast, reliable, and private SMS
-              verification.
+              {content.ctaSubtitle}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Link to="/register">
@@ -1134,7 +1158,7 @@ function CTASection() {
                   className="!h-12 !px-8 !text-sm !font-bold !bg-white !text-emerald-700 hover:!bg-white/90"
                   rightIcon="arrowRight"
                 >
-                  Create free account
+                  {content.ctaPrimaryCta}
                 </Button>
               </Link>
               <Button
@@ -1144,7 +1168,7 @@ function CTASection() {
                   document.getElementById("how")?.scrollIntoView({ behavior: "smooth" })
                 }
               >
-                Learn more
+                {content.ctaSecondaryCta}
               </Button>
             </div>
           </div>
@@ -1160,7 +1184,7 @@ function CTASection() {
 function Footer({ branding }: { branding: WebsiteBranding }) {
   const siteName = branding.siteName || "OTP Seller";
   const siteDescription =
-    branding.siteDescription || "Receive OTP SMS online using virtual numbers.";
+    branding.siteDescription || "Terima OTP SMS online menggunakan nomor virtual.";
   const logoUrl = branding.logoUrl;
 
   return (
@@ -1194,10 +1218,10 @@ function Footer({ branding }: { branding: WebsiteBranding }) {
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                All systems operational
+                Semua sistem normal
               </span>
-              <Badge tone="slate">180+ countries</Badge>
-              <Badge tone="slate">700+ services</Badge>
+              <Badge tone="slate">180+ negara</Badge>
+              <Badge tone="slate">700+ layanan</Badge>
             </div>
           </div>
 
@@ -1205,30 +1229,30 @@ function Footer({ branding }: { branding: WebsiteBranding }) {
           <div className="grid gap-8 sm:grid-cols-3 lg:col-span-7">
             {[
               {
-                title: "Product",
+                title: "Produk",
                 icon: "solar:widget-bold-duotone",
                 links: [
-                  { label: "Overview", href: "#product" },
-                  { label: "How it works", href: "#how" },
+                  { label: "Ringkasan", href: "#product" },
+                  { label: "Cara kerja", href: "#how" },
                   { label: "FAQ", href: "#faq" },
                 ],
               },
               {
-                title: "Help",
+                title: "Bantuan",
                 icon: "solar:question-circle-bold-duotone",
                 links: [
-                  { label: "Support", href: "#faq" },
-                  { label: "Contact us", href: "#" },
+                  { label: "Dukungan", href: "#faq" },
+                  { label: "Hubungi kami", href: "#" },
                   { label: "Status", href: "#" },
                 ],
               },
               {
-                title: "Legal",
+                title: "Kebijakan",
                 icon: "solar:shield-check-bold-duotone",
                 links: [
-                  { label: "Privacy", href: "#" },
-                  { label: "Terms", href: "#" },
-                  { label: "Refunds", href: "#" },
+                  { label: "Privasi", href: "#" },
+                  { label: "Syarat", href: "#" },
+                  { label: "Pengembalian dana", href: "#" },
                 ],
               },
             ].map((col) => (
@@ -1258,17 +1282,17 @@ function Footer({ branding }: { branding: WebsiteBranding }) {
         {/* Bottom bar */}
         <div className="flex flex-col gap-3 border-t border-slate-200/60 py-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs text-slate-400">
-            © {new Date().getFullYear()} {siteName}. All rights reserved.
+            © {new Date().getFullYear()} {siteName}. Semua hak dilindungi.
           </div>
           <div className="flex gap-4 text-xs text-slate-400">
             <a href="#" className="transition-colors hover:text-emerald-700">
-              Terms
+              Syarat
             </a>
             <a href="#" className="transition-colors hover:text-emerald-700">
-              Privacy
+              Privasi
             </a>
             <a href="#" className="transition-colors hover:text-emerald-700">
-              Refunds
+              Pengembalian dana
             </a>
           </div>
         </div>
@@ -1295,14 +1319,66 @@ export default function LandingPage() {
     };
   }, []);
 
+  useEffect(() => {
+    const seo = branding.seo;
+    const pageTitle =
+      String(seo.metaTitle ?? "").trim() || `${branding.siteName} - ${branding.siteDescription}`;
+    const pageDescription =
+      String(seo.metaDescription ?? "").trim() || branding.siteDescription;
+    const ogImage = seo.ogImageUrl || branding.logoUrl || "";
+
+    document.title = pageTitle;
+    upsertMeta('meta[name="description"]', {
+      name: "description",
+      content: pageDescription,
+    });
+    upsertMeta('meta[name="robots"]', {
+      name: "robots",
+      content: seo.robotsNoIndex ? "noindex, nofollow" : "index, follow",
+    });
+
+    upsertMeta('meta[property="og:type"]', { property: "og:type", content: "website" });
+    upsertMeta('meta[property="og:title"]', { property: "og:title", content: pageTitle });
+    upsertMeta('meta[property="og:description"]', {
+      property: "og:description",
+      content: pageDescription,
+    });
+    upsertMeta('meta[property="og:image"]', {
+      property: "og:image",
+      content: ogImage || "",
+    });
+
+    upsertMeta('meta[name="twitter:card"]', {
+      name: "twitter:card",
+      content: seo.twitterCard || "summary_large_image",
+    });
+    upsertMeta('meta[name="twitter:title"]', {
+      name: "twitter:title",
+      content: pageTitle,
+    });
+    upsertMeta('meta[name="twitter:description"]', {
+      name: "twitter:description",
+      content: pageDescription,
+    });
+    upsertMeta('meta[name="twitter:image"]', {
+      name: "twitter:image",
+      content: ogImage || "",
+    });
+
+    const favicon = seo.faviconUrl || branding.logoUrl || "";
+    if (favicon) {
+      upsertLink('link[rel="icon"]', { rel: "icon", href: favicon });
+    }
+  }, [branding]);
+
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <Header branding={branding} />
-      <Hero />
-      <ProductSection />
-      <HowItWorks />
-      <FAQ />
-      <CTASection />
+      <Hero content={branding.landingContent} />
+      <ProductSection content={branding.landingContent} />
+      <HowItWorks content={branding.landingContent} />
+      <FAQ content={branding.landingContent} />
+      <CTASection content={branding.landingContent} />
       <Footer branding={branding} />
 
       {/* Global animation styles */}

@@ -1,7 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sileo } from "sileo";
 import { API_BASE, adminFetch } from "../../lib/adminApi";
-import { Button, Card, Icon, Input, Modal, Switch } from "../../components/ui";
+import { Button, Card, DropdownSelect, Icon, Input, Modal, Switch } from "../../components/ui";
+
+type SeoSettings = {
+  metaTitle: string;
+  metaDescription: string;
+  faviconUrl?: string | null;
+  ogImageUrl?: string | null;
+  twitterCard: "summary" | "summary_large_image";
+  robotsNoIndex: boolean;
+};
+
+type LandingContentSettings = {
+  heroBadge: string;
+  heroTitle: string;
+  heroHighlight: string;
+  heroDescription: string;
+  heroPrimaryCta: string;
+  heroSecondaryCta: string;
+  productEyebrow: string;
+  productTitle: string;
+  productSubtitle: string;
+  howEyebrow: string;
+  howTitle: string;
+  howSubtitle: string;
+  faqEyebrow: string;
+  faqTitle: string;
+  faqSubtitle: string;
+  ctaBadge: string;
+  ctaTitle: string;
+  ctaSubtitle: string;
+  ctaPrimaryCta: string;
+  ctaSecondaryCta: string;
+};
 
 type WebsiteSettings = {
   id: string;
@@ -10,6 +42,8 @@ type WebsiteSettings = {
   logoUrl?: string | null;
   maintenanceMode: boolean;
   maintenanceMessage?: string | null;
+  seo: SeoSettings;
+  landingContent: LandingContentSettings;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -22,6 +56,8 @@ type WebsiteBanner = {
   linkUrl?: string | null;
   sortOrder: number;
   isActive: boolean;
+  startAt?: string | null;
+  endAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -40,6 +76,43 @@ type BannerForm = {
   linkUrl: string;
   sortOrder: number;
   isActive: boolean;
+  startAt: string;
+  endAt: string;
+};
+
+const DEFAULT_SEO_SETTINGS: SeoSettings = {
+  metaTitle: "",
+  metaDescription: "",
+  faviconUrl: "",
+  ogImageUrl: "",
+  twitterCard: "summary_large_image",
+  robotsNoIndex: false,
+};
+
+const DEFAULT_LANDING_CONTENT: LandingContentSettings = {
+  heroBadge: "Layanan aktif",
+  heroTitle: "Terima OTP SMS",
+  heroHighlight: "dengan nomor virtual",
+  heroDescription:
+    "Pilih negara dan layanan, beli nomor, lalu terima kode verifikasi secara instan. Cocok untuk messenger, media sosial, marketplace, dan lainnya.",
+  heroPrimaryCta: "Mulai Sekarang",
+  heroSecondaryCta: "Cara kerja",
+  productEyebrow: "Produk",
+  productTitle: "Kenapa memilih nomor virtual kami",
+  productSubtitle:
+    "Dibuat untuk alur verifikasi di platform populer - sederhana, cepat, dan ramah privasi.",
+  howEyebrow: "Cara kerja",
+  howTitle: "Lima langkah mudah untuk menerima OTP",
+  howSubtitle: "Alur sederhana untuk kebutuhan verifikasi harian.",
+  faqEyebrow: "FAQ",
+  faqTitle: "Pertanyaan yang sering ditanyakan",
+  faqSubtitle: "Jawaban singkat untuk pertanyaan paling umum tentang layanan kami.",
+  ctaBadge: "Siap mulai?",
+  ctaTitle: "Mulai terima OTP SMS hari ini",
+  ctaSubtitle:
+    "Bergabung dengan ribuan pengguna yang mempercayai platform kami untuk verifikasi SMS yang cepat, andal, dan aman.",
+  ctaPrimaryCta: "Buat akun gratis",
+  ctaSecondaryCta: "Pelajari lebih lanjut",
 };
 
 function cx(...xs: Array<string | false | undefined | null>) {
@@ -58,6 +131,20 @@ function formatTime(iso?: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function toDateTimeLocalValue(iso?: string | null) {
+  const text = String(iso ?? "").trim();
+  if (!text) return "";
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return "";
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 /* ─── Drag & Drop Upload Zone ─── */
@@ -217,6 +304,8 @@ export default function AdminWebsiteSettings() {
     logoUrl: "",
     maintenanceMode: false,
     maintenanceMessage: "",
+    seo: DEFAULT_SEO_SETTINGS,
+    landingContent: DEFAULT_LANDING_CONTENT,
   });
 
   const [banners, setBanners] = useState<WebsiteBanner[]>([]);
@@ -237,6 +326,8 @@ export default function AdminWebsiteSettings() {
     linkUrl: "",
     sortOrder: 0,
     isActive: true,
+    startAt: "",
+    endAt: "",
   });
 
   /* Delete banner modal */
@@ -251,10 +342,70 @@ export default function AdminWebsiteSettings() {
       const res = await adminFetch("/admin/settings/website", { method: "GET" });
       const data = (await res.json()) as WebsiteResponse;
       if (data.settings) {
+        const seoSource: Record<string, unknown> = isObject(data.settings.seo)
+          ? data.settings.seo
+          : {};
+        const landingSource: Record<string, unknown> = isObject(data.settings.landingContent)
+          ? data.settings.landingContent
+          : {};
+
         setSettings({
           ...data.settings,
           logoUrl: String(data.settings.logoUrl ?? ""),
           maintenanceMessage: String(data.settings.maintenanceMessage ?? ""),
+          seo: {
+            metaTitle: String(seoSource.metaTitle ?? DEFAULT_SEO_SETTINGS.metaTitle),
+            metaDescription: String(
+              seoSource.metaDescription ?? DEFAULT_SEO_SETTINGS.metaDescription
+            ),
+            faviconUrl: String(seoSource.faviconUrl ?? DEFAULT_SEO_SETTINGS.faviconUrl),
+            ogImageUrl: String(seoSource.ogImageUrl ?? DEFAULT_SEO_SETTINGS.ogImageUrl),
+            twitterCard:
+              String(seoSource.twitterCard ?? DEFAULT_SEO_SETTINGS.twitterCard) === "summary"
+                ? "summary"
+                : "summary_large_image",
+            robotsNoIndex: Boolean(seoSource.robotsNoIndex ?? DEFAULT_SEO_SETTINGS.robotsNoIndex),
+          },
+          landingContent: {
+            heroBadge: String(landingSource.heroBadge ?? DEFAULT_LANDING_CONTENT.heroBadge),
+            heroTitle: String(landingSource.heroTitle ?? DEFAULT_LANDING_CONTENT.heroTitle),
+            heroHighlight: String(
+              landingSource.heroHighlight ?? DEFAULT_LANDING_CONTENT.heroHighlight
+            ),
+            heroDescription: String(
+              landingSource.heroDescription ?? DEFAULT_LANDING_CONTENT.heroDescription
+            ),
+            heroPrimaryCta: String(
+              landingSource.heroPrimaryCta ?? DEFAULT_LANDING_CONTENT.heroPrimaryCta
+            ),
+            heroSecondaryCta: String(
+              landingSource.heroSecondaryCta ?? DEFAULT_LANDING_CONTENT.heroSecondaryCta
+            ),
+            productEyebrow: String(
+              landingSource.productEyebrow ?? DEFAULT_LANDING_CONTENT.productEyebrow
+            ),
+            productTitle: String(
+              landingSource.productTitle ?? DEFAULT_LANDING_CONTENT.productTitle
+            ),
+            productSubtitle: String(
+              landingSource.productSubtitle ?? DEFAULT_LANDING_CONTENT.productSubtitle
+            ),
+            howEyebrow: String(landingSource.howEyebrow ?? DEFAULT_LANDING_CONTENT.howEyebrow),
+            howTitle: String(landingSource.howTitle ?? DEFAULT_LANDING_CONTENT.howTitle),
+            howSubtitle: String(landingSource.howSubtitle ?? DEFAULT_LANDING_CONTENT.howSubtitle),
+            faqEyebrow: String(landingSource.faqEyebrow ?? DEFAULT_LANDING_CONTENT.faqEyebrow),
+            faqTitle: String(landingSource.faqTitle ?? DEFAULT_LANDING_CONTENT.faqTitle),
+            faqSubtitle: String(landingSource.faqSubtitle ?? DEFAULT_LANDING_CONTENT.faqSubtitle),
+            ctaBadge: String(landingSource.ctaBadge ?? DEFAULT_LANDING_CONTENT.ctaBadge),
+            ctaTitle: String(landingSource.ctaTitle ?? DEFAULT_LANDING_CONTENT.ctaTitle),
+            ctaSubtitle: String(landingSource.ctaSubtitle ?? DEFAULT_LANDING_CONTENT.ctaSubtitle),
+            ctaPrimaryCta: String(
+              landingSource.ctaPrimaryCta ?? DEFAULT_LANDING_CONTENT.ctaPrimaryCta
+            ),
+            ctaSecondaryCta: String(
+              landingSource.ctaSecondaryCta ?? DEFAULT_LANDING_CONTENT.ctaSecondaryCta
+            ),
+          },
         });
       }
       setBanners(Array.isArray(data.banners) ? data.banners : []);
@@ -289,6 +440,39 @@ export default function AdminWebsiteSettings() {
     const siteDescription = settings.siteDescription.trim();
     const logoUrl = String(settings.logoUrl ?? "").trim();
     const maintenanceMessage = String(settings.maintenanceMessage ?? "").trim();
+    const seo = {
+      metaTitle: String(settings.seo.metaTitle ?? "").trim(),
+      metaDescription: String(settings.seo.metaDescription ?? "").trim(),
+      faviconUrl: String(settings.seo.faviconUrl ?? "").trim() || null,
+      ogImageUrl: String(settings.seo.ogImageUrl ?? "").trim() || null,
+      twitterCard:
+        String(settings.seo.twitterCard ?? "summary_large_image") === "summary"
+          ? "summary"
+          : "summary_large_image",
+      robotsNoIndex: Boolean(settings.seo.robotsNoIndex),
+    };
+    const landingContent = {
+      heroBadge: String(settings.landingContent.heroBadge ?? "").trim(),
+      heroTitle: String(settings.landingContent.heroTitle ?? "").trim(),
+      heroHighlight: String(settings.landingContent.heroHighlight ?? "").trim(),
+      heroDescription: String(settings.landingContent.heroDescription ?? "").trim(),
+      heroPrimaryCta: String(settings.landingContent.heroPrimaryCta ?? "").trim(),
+      heroSecondaryCta: String(settings.landingContent.heroSecondaryCta ?? "").trim(),
+      productEyebrow: String(settings.landingContent.productEyebrow ?? "").trim(),
+      productTitle: String(settings.landingContent.productTitle ?? "").trim(),
+      productSubtitle: String(settings.landingContent.productSubtitle ?? "").trim(),
+      howEyebrow: String(settings.landingContent.howEyebrow ?? "").trim(),
+      howTitle: String(settings.landingContent.howTitle ?? "").trim(),
+      howSubtitle: String(settings.landingContent.howSubtitle ?? "").trim(),
+      faqEyebrow: String(settings.landingContent.faqEyebrow ?? "").trim(),
+      faqTitle: String(settings.landingContent.faqTitle ?? "").trim(),
+      faqSubtitle: String(settings.landingContent.faqSubtitle ?? "").trim(),
+      ctaBadge: String(settings.landingContent.ctaBadge ?? "").trim(),
+      ctaTitle: String(settings.landingContent.ctaTitle ?? "").trim(),
+      ctaSubtitle: String(settings.landingContent.ctaSubtitle ?? "").trim(),
+      ctaPrimaryCta: String(settings.landingContent.ctaPrimaryCta ?? "").trim(),
+      ctaSecondaryCta: String(settings.landingContent.ctaSecondaryCta ?? "").trim(),
+    };
 
     if (!siteName) {
       sileo.warning({ title: "Nama website wajib diisi", position: "top-center" });
@@ -309,6 +493,8 @@ export default function AdminWebsiteSettings() {
           logoUrl: logoUrl || null,
           maintenanceMode: settings.maintenanceMode,
           maintenanceMessage: maintenanceMessage || null,
+          seo,
+          landingContent,
         }),
       });
       sileo.success({ title: "Website setting tersimpan", position: "top-center" });
@@ -334,6 +520,8 @@ export default function AdminWebsiteSettings() {
       linkUrl: "",
       sortOrder: banners.length,
       isActive: true,
+      startAt: "",
+      endAt: "",
     });
     setBannerModalOpen(true);
   }, [banners.length]);
@@ -348,6 +536,8 @@ export default function AdminWebsiteSettings() {
       linkUrl: String(banner.linkUrl ?? ""),
       sortOrder: banner.sortOrder,
       isActive: banner.isActive,
+      startAt: toDateTimeLocalValue(banner.startAt),
+      endAt: toDateTimeLocalValue(banner.endAt),
     });
     setBannerModalOpen(true);
   }, []);
@@ -374,6 +564,8 @@ export default function AdminWebsiteSettings() {
         linkUrl: bannerForm.linkUrl.trim() || null,
         sortOrder: Number.isFinite(bannerForm.sortOrder) ? bannerForm.sortOrder : 0,
         isActive: bannerForm.isActive,
+        startAt: bannerForm.startAt.trim() || null,
+        endAt: bannerForm.endAt.trim() || null,
       };
 
       if (bannerModalMode === "create") {
@@ -475,6 +667,86 @@ export default function AdminWebsiteSettings() {
     [uploadImage]
   );
 
+  const handleSeoImageUpload = useCallback(
+    async (file: File, key: "faviconUrl" | "ogImageUrl") => {
+      try {
+        setSavingSettings(true);
+        const url = await uploadImage(file);
+        if (!url) throw new Error("URL gambar tidak valid");
+        setSettings((prev) => ({
+          ...prev,
+          seo: {
+            ...prev.seo,
+            [key]: url,
+          },
+        }));
+        sileo.success({
+          title: key === "faviconUrl" ? "Favicon berhasil diupload" : "OG image berhasil diupload",
+          position: "top-center",
+        });
+      } catch (err: any) {
+        sileo.error({
+          title: "Gagal upload gambar SEO",
+          description: err?.message || "Unknown error",
+          position: "top-center",
+        });
+      } finally {
+        setSavingSettings(false);
+      }
+    },
+    [uploadImage],
+  );
+
+  const moveBannerOrder = useCallback(
+    async (banner: WebsiteBanner, direction: "up" | "down") => {
+      const sorted = [...banners].sort((a, b) => a.sortOrder - b.sortOrder);
+      const idx = sorted.findIndex((x) => x.id === banner.id);
+      if (idx < 0) return;
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= sorted.length) return;
+
+      const target = sorted[swapIdx];
+      try {
+        await Promise.all([
+          adminFetch(`/admin/settings/website/banners/${banner.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              imageUrl: banner.imageUrl,
+              title: banner.title ?? null,
+              subtitle: banner.subtitle ?? null,
+              linkUrl: banner.linkUrl ?? null,
+              sortOrder: target.sortOrder,
+              isActive: banner.isActive,
+              startAt: banner.startAt ? toDateTimeLocalValue(banner.startAt) : null,
+              endAt: banner.endAt ? toDateTimeLocalValue(banner.endAt) : null,
+            }),
+          }),
+          adminFetch(`/admin/settings/website/banners/${target.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              imageUrl: target.imageUrl,
+              title: target.title ?? null,
+              subtitle: target.subtitle ?? null,
+              linkUrl: target.linkUrl ?? null,
+              sortOrder: banner.sortOrder,
+              isActive: target.isActive,
+              startAt: target.startAt ? toDateTimeLocalValue(target.startAt) : null,
+              endAt: target.endAt ? toDateTimeLocalValue(target.endAt) : null,
+            }),
+          }),
+        ]);
+        await load();
+      } catch (e: any) {
+        sileo.error({
+          title: "Gagal ubah urutan banner",
+          description: e?.message || "Unknown error",
+          position: "top-center",
+        });
+      }
+    },
+    [banners, load],
+  );
+
   const bannerCountLabel = useMemo(() => `${banners.length} banner`, [banners.length]);
   const activeBannerCount = useMemo(() => banners.filter((b) => b.isActive).length, [banners]);
 
@@ -544,6 +816,31 @@ export default function AdminWebsiteSettings() {
               }
               leftIcon="iconify:solar:sort-vertical-bold-duotone"
             />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Mulai Tayang
+              </label>
+              <input
+                type="datetime-local"
+                value={bannerForm.startAt}
+                onChange={(e) => setBannerForm((prev) => ({ ...prev, startAt: e.target.value }))}
+                className="h-11 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 text-[13px] text-slate-900 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Berakhir Tayang
+              </label>
+              <input
+                type="datetime-local"
+                value={bannerForm.endAt}
+                onChange={(e) => setBannerForm((prev) => ({ ...prev, endAt: e.target.value }))}
+                className="h-11 w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 text-[13px] text-slate-900 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
+              />
+            </div>
           </div>
 
           <div className="rounded-xl border border-slate-200/60 bg-slate-50/80 p-3.5">
@@ -821,6 +1118,414 @@ export default function AdminWebsiteSettings() {
           </div>
         </Card>
 
+        {/* ════════ SEO & META ════════ */}
+        <Card className="!p-0 overflow-hidden border-0 shadow-sm">
+          <div className="border-b border-slate-100/80 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/20">
+                  <Icon name="iconify:solar:code-square-bold-duotone" className="h-4.5 w-4.5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-800">SEO & Meta</h2>
+                  <p className="text-[11px] text-slate-400">
+                    Atur title, description, favicon, OG image, dan robots.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                isLoading={savingSettings}
+                onClick={saveWebsiteSettings}
+                leftIcon="check"
+                className="!h-8 !text-[11px] !font-bold"
+              >
+                Simpan SEO
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-5">
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="space-y-4">
+                <Input
+                  label="Meta Title"
+                  placeholder="Contoh: OTP Murah - Nomor Virtual OTP"
+                  value={settings.seo.metaTitle}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      seo: { ...prev.seo, metaTitle: e.target.value },
+                    }))
+                  }
+                  leftIcon="iconify:solar:text-bold-duotone"
+                />
+
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    Meta Description
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={settings.seo.metaDescription}
+                    onChange={(e) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        seo: { ...prev.seo, metaDescription: e.target.value },
+                      }))
+                    }
+                    className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm resize-none"
+                    placeholder="Deskripsi SEO untuk mesin pencari."
+                  />
+                </div>
+
+                <DropdownSelect
+                  value={settings.seo.twitterCard}
+                  onChange={(value) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      seo: {
+                        ...prev.seo,
+                        twitterCard: value === "summary" ? "summary" : "summary_large_image",
+                      },
+                    }))
+                  }
+                  options={[
+                    {
+                      value: "summary_large_image",
+                      label: "summary_large_image",
+                      description: "Gambar besar saat link dibagikan",
+                    },
+                    {
+                      value: "summary",
+                      label: "summary",
+                      description: "Kartu ringkas dengan gambar kecil",
+                    },
+                  ]}
+                  placeholder="Pilih Twitter card"
+                  leftIcon="iconify:solar:widget-5-bold-duotone"
+                />
+
+                <div className="rounded-xl border border-slate-200/60 bg-slate-50/80 p-3.5">
+                  <Switch
+                    checked={settings.seo.robotsNoIndex}
+                    onCheckedChange={(next) =>
+                      setSettings((prev) => ({
+                        ...prev,
+                        seo: { ...prev.seo, robotsNoIndex: next },
+                      }))
+                    }
+                    label={
+                      settings.seo.robotsNoIndex
+                        ? "No Index aktif - halaman tidak diindeks mesin pencari"
+                        : "Index aktif - halaman boleh diindeks mesin pencari"
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <DropZone
+                  label="Favicon"
+                  value={String(settings.seo.faviconUrl ?? "")}
+                  uploading={savingSettings}
+                  onFile={(file) => handleSeoImageUpload(file, "faviconUrl")}
+                  onUrlChange={(url) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      seo: { ...prev.seo, faviconUrl: url },
+                    }))
+                  }
+                  height="h-28"
+                />
+                <DropZone
+                  label="Open Graph Image"
+                  value={String(settings.seo.ogImageUrl ?? "")}
+                  uploading={savingSettings}
+                  onFile={(file) => handleSeoImageUpload(file, "ogImageUrl")}
+                  onUrlChange={(url) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      seo: { ...prev.seo, ogImageUrl: url },
+                    }))
+                  }
+                  height="h-32"
+                />
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* ════════ LANDING CMS ════════ */}
+        <Card className="!p-0 overflow-hidden border-0 shadow-sm">
+          <div className="border-b border-slate-100/80 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/20">
+                  <Icon name="iconify:solar:document-text-bold-duotone" className="h-4.5 w-4.5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-800">Landing CMS</h2>
+                  <p className="text-[11px] text-slate-400">
+                    Edit teks hero, section title, dan CTA landing page.
+                  </p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                isLoading={savingSettings}
+                onClick={saveWebsiteSettings}
+                leftIcon="check"
+                className="!h-8 !text-[11px] !font-bold"
+              >
+                Simpan Konten
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Hero Badge"
+                value={settings.landingContent.heroBadge}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, heroBadge: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="Hero Judul"
+                value={settings.landingContent.heroTitle}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, heroTitle: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="Hero Highlight"
+                value={settings.landingContent.heroHighlight}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, heroHighlight: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="Hero Tombol Utama"
+                value={settings.landingContent.heroPrimaryCta}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, heroPrimaryCta: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="Hero Tombol Sekunder"
+                value={settings.landingContent.heroSecondaryCta}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, heroSecondaryCta: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="Product Eyebrow"
+                value={settings.landingContent.productEyebrow}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, productEyebrow: e.target.value },
+                  }))
+                }
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                Hero Description
+              </label>
+              <textarea
+                rows={3}
+                value={settings.landingContent.heroDescription}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, heroDescription: e.target.value },
+                  }))
+                }
+                className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm resize-none"
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Product Title"
+                value={settings.landingContent.productTitle}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, productTitle: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="How Eyebrow"
+                value={settings.landingContent.howEyebrow}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, howEyebrow: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="How Title"
+                value={settings.landingContent.howTitle}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, howTitle: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="FAQ Eyebrow"
+                value={settings.landingContent.faqEyebrow}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, faqEyebrow: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="FAQ Title"
+                value={settings.landingContent.faqTitle}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, faqTitle: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="CTA Badge"
+                value={settings.landingContent.ctaBadge}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, ctaBadge: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="CTA Title"
+                value={settings.landingContent.ctaTitle}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, ctaTitle: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="CTA Tombol Utama"
+                value={settings.landingContent.ctaPrimaryCta}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, ctaPrimaryCta: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                label="CTA Tombol Sekunder"
+                value={settings.landingContent.ctaSecondaryCta}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    landingContent: { ...prev.landingContent, ctaSecondaryCta: e.target.value },
+                  }))
+                }
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Product Subtitle
+                </label>
+                <textarea
+                  rows={3}
+                  value={settings.landingContent.productSubtitle}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      landingContent: { ...prev.landingContent, productSubtitle: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm resize-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  How Subtitle
+                </label>
+                <textarea
+                  rows={3}
+                  value={settings.landingContent.howSubtitle}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      landingContent: { ...prev.landingContent, howSubtitle: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm resize-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  FAQ Subtitle
+                </label>
+                <textarea
+                  rows={3}
+                  value={settings.landingContent.faqSubtitle}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      landingContent: { ...prev.landingContent, faqSubtitle: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm resize-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  CTA Subtitle
+                </label>
+                <textarea
+                  rows={3}
+                  value={settings.landingContent.ctaSubtitle}
+                  onChange={(e) =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      landingContent: { ...prev.landingContent, ctaSubtitle: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-xl border border-slate-200/80 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all duration-200 focus:border-emerald-400 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:shadow-sm resize-none"
+                />
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* ════════ BANNER SLIDER ════════ */}
         <Card className="!p-0 overflow-hidden border-0 shadow-sm">
           <div className="border-b border-slate-100/80 bg-gradient-to-r from-slate-50/80 to-white px-5 py-4">
@@ -892,7 +1597,7 @@ export default function AdminWebsiteSettings() {
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {banners.map((item) => (
+                {banners.map((item, idx) => (
                   <div
                     key={item.id}
                     className={cx(
@@ -955,12 +1660,50 @@ export default function AdminWebsiteSettings() {
                           <span className="truncate">{item.linkUrl}</span>
                         </div>
                       )}
+                      {(item.startAt || item.endAt) && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-400 truncate">
+                          <Icon
+                            name="iconify:solar:calendar-bold-duotone"
+                            className="h-3 w-3 shrink-0"
+                          />
+                          <span className="truncate">
+                            {item.startAt ? formatTime(item.startAt) : "Sekarang"} -{" "}
+                            {item.endAt ? formatTime(item.endAt) : "Tanpa batas"}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="mt-3 flex items-center justify-between">
                         <span className="text-[9px] text-slate-400">
                           {formatTime(item.updatedAt)}
                         </span>
                         <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => moveBannerOrder(item, "up")}
+                            className="!h-7 !w-7 !p-0"
+                            title="Naikkan urutan"
+                            disabled={idx === 0}
+                          >
+                            <Icon
+                              name="iconify:solar:alt-arrow-up-bold-duotone"
+                              className="h-3 w-3"
+                            />
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => moveBannerOrder(item, "down")}
+                            className="!h-7 !w-7 !p-0"
+                            title="Turunkan urutan"
+                            disabled={idx === banners.length - 1}
+                          >
+                            <Icon
+                              name="iconify:solar:alt-arrow-down-bold-duotone"
+                              className="h-3 w-3"
+                            />
+                          </Button>
                           <Button
                             variant="secondary"
                             size="sm"
